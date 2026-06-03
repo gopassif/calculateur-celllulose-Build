@@ -25,14 +25,14 @@ body { font-family:var(--sans); font-size:14px; background:var(--bg); color:var(
 [data-summary-position="inline"] .layout { grid-template-columns:minmax(0,1fr); }
 [data-summary-position="inline"] .summary-col { position:static !important; }
 .inputs-col { display:flex; flex-direction:column; gap:var(--gap-stack); min-width:0; }
-.summary-col { position:sticky; top:76px; display:flex; flex-direction:column; gap:var(--gap-stack); }
+.summary-col { position:static; display:flex; flex-direction:column; gap:var(--gap-stack); }
 @media(max-width:1024px){ .layout{grid-template-columns:minmax(0,1fr);} .summary-col{position:static;} }
 
 .section-label { font-size:10px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-4); padding:8px 4px 2px; display:flex; align-items:center; gap:10px; }
 .section-label::after { content:""; flex:1; height:1px; background:var(--line); }
 
-/* Nav sticky — fond sombre/noir */
-.inputs-nav { position:sticky; top:70px; z-index:20; background:var(--bg); padding:6px 0 8px; margin-bottom:2px; }
+/* Nav — fond sombre/noir. Le collage est piloté par JS (position:fixed). */
+.inputs-nav { position:static; z-index:20; background:var(--bg); padding:6px 0 8px; margin-bottom:2px; }
 .inputs-nav-inner {
   display:flex; flex-direction:column; gap:6px;
   background:#1a1a1a;
