@@ -229,31 +229,22 @@
       <div class="ct-left"><span class="step-badge">3</span><span>Grenier / Entretoit</span></div>
     </div>
     <!-- En-tête de zone: R, épaisseur, densité -->
-    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px">
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Valeur R</label>
-        <input type="text" id="CC_grenierR" class="jeu-global-input" style="width:80px" value="60" oninput="CC_onZoneHeaderChange('grenier')">
+    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px;align-items:flex-start">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Valeur R</label>
+        <input type="text" id="CC_grenierR" class="jeu-global-input zone-hdr-input" value="60" oninput="CC_onZoneHeaderChange('grenier')">
+        <input type="range" class="cfg-slider" id="CC_grenierRSlider" min="12" max="120" step="1" value="60" oninput="CC_onZoneSlider('grenier','r')">
       </div>
-      <div style="display:flex;align-items:center;font-size:18px;color:var(--ink-4);padding-top:16px">&harr;</div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">&Eacute;paisseur <span id="CC_grenierEpHdrUnit">(po)</span></label>
-        <input type="text" id="CC_grenierEp" class="jeu-global-input" style="width:80px" value="" oninput="CC_onZoneHeaderEpChange('grenier')">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">&Eacute;paisseur <span id="CC_grenierEpHdrUnit">(po)</span></label>
+        <input type="text" id="CC_grenierEp" class="jeu-global-input zone-hdr-input" value="" oninput="CC_onZoneHeaderEpChange('grenier')">
+        <input type="range" class="cfg-slider" id="CC_grenierEpSlider" min="3.5" max="34" step="0.25" value="17" oninput="CC_onZoneSlider('grenier','ep')">
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Densit&eacute; (lbs/pi&sup3;)</label>
-        <input type="text" id="CC_grenierDens" class="jeu-global-input" style="width:80px" value="1.52" oninput="CC_onZoneHeaderChange('grenier')">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Densit&eacute; (lbs/pi&sup3;)</label>
+        <input type="text" id="CC_grenierDens" class="jeu-global-input zone-hdr-input" value="1.52" oninput="CC_onZoneHeaderChange('grenier')">
       </div>
       <button type="button" class="btn-jeu-apply" style="margin-top:16px" onclick="CC_applyZoneHeaderAll('grenier')">Appliquer &agrave; toutes</button>
-    </div>
-    <div class="zone-sliders">
-      <div class="zone-slider-row">
-        <span class="zone-slider-lbl">Valeur R</span>
-        <input type="range" id="CC_grenierRSlider" min="12" max="120" step="1" value="60" oninput="CC_onZoneSlider('grenier','r')">
-      </div>
-      <div class="zone-slider-row">
-        <span class="zone-slider-lbl">&Eacute;paisseur</span>
-        <input type="range" id="CC_grenierEpSlider" min="3.5" max="34" step="0.25" value="17" oninput="CC_onZoneSlider('grenier','ep')">
-      </div>
     </div>
     <div class="col-toggles" id="CC_cols_grenier" style="margin-top:14px">
       <span class="ct-lbl">Colonnes</span>
@@ -295,30 +286,22 @@
     <div class="card-title">
       <div class="ct-left"><span class="step-badge">4</span><span>Plafond-plancher (poutrelles)</span></div>
     </div>
-    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px">
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Hauteur poutrelles <span id="CC_plafondHtHdrUnit">(po)</span></label>
-        <input type="text" id="CC_plafondHt" class="jeu-global-input" style="width:80px" value="11.875" oninput="CC_onZoneHeaderChange('plafonds')">
+    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px;align-items:flex-start">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Hauteur poutrelles <span id="CC_plafondHtHdrUnit">(po)</span></label>
+        <input type="text" id="CC_plafondHt" class="jeu-global-input zone-hdr-input" value="11.875" oninput="CC_onZoneHeaderChange('plafonds')">
+        <input type="range" class="cfg-slider" id="CC_plafondEpSlider" min="3.5" max="16.75" step="0.125" value="11.875" oninput="CC_onZoneSlider('plafonds','ep')">
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">R calcul&eacute;</label>
-        <input type="text" id="CC_plafondR" class="jeu-global-input computed" style="width:80px;background:var(--surface-3);color:var(--ink-3)" readonly tabindex="-1">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">R calcul&eacute;</label>
+        <input type="text" id="CC_plafondR" class="jeu-global-input zone-hdr-input computed" style="background:var(--surface-3);color:var(--ink-3)" readonly tabindex="-1">
+        <input type="range" class="cfg-slider" id="CC_plafondRSlider" min="13" max="59" step="1" value="42" oninput="CC_onZoneSlider('plafonds','r')">
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Densit&eacute; (lbs/pi&sup3;)</label>
-        <input type="text" id="CC_plafondDens" class="jeu-global-input" style="width:80px" value="2.0" oninput="CC_onZoneHeaderChange('plafonds')">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Densit&eacute; (lbs/pi&sup3;)</label>
+        <input type="text" id="CC_plafondDens" class="jeu-global-input zone-hdr-input" value="2.0" oninput="CC_onZoneHeaderChange('plafonds')">
       </div>
       <button type="button" class="btn-jeu-apply" style="margin-top:16px" onclick="CC_applyZoneHeaderAll('plafonds')">Appliquer &agrave; toutes</button>
-    </div>
-    <div class="zone-sliders">
-      <div class="zone-slider-row">
-        <span class="zone-slider-lbl">Hauteur</span>
-        <input type="range" id="CC_plafondEpSlider" min="3.5" max="16.75" step="0.125" value="11.875" oninput="CC_onZoneSlider('plafonds','ep')">
-      </div>
-      <div class="zone-slider-row">
-        <span class="zone-slider-lbl">Valeur R</span>
-        <input type="range" id="CC_plafondRSlider" min="13" max="59" step="1" value="42" oninput="CC_onZoneSlider('plafonds','r')">
-      </div>
     </div>
     <div class="col-toggles" style="margin-top:14px">
       <span class="ct-lbl">Colonnes</span>
@@ -360,40 +343,30 @@
     <div class="card-title">
       <div class="ct-left"><span class="step-badge">5</span><span>Murs - Portions rectangulaires</span></div>
     </div>
-    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px">
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Hauteur murs <span id="CC_hauteurGlobalUnit">(pi &middot; po)</span></label>
+    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px;align-items:flex-start">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Hauteur murs <span id="CC_hauteurGlobalUnit">(pi &middot; po)</span></label>
         <span class="dim-imp" id="CC_hauteurGlobalImp" style="display:inline-flex">
           <span class="dim-pair"><input type="text" id="CC_hauteurGlobal_pi" class="tbl-input dim-in" size="3" value="8" oninput="CC_onHauteurGlobalInput()"> <span class="dim-suf">pi</span></span>
           <span class="dim-pair"><input type="text" id="CC_hauteurGlobal_po" class="tbl-input dim-in" size="3" oninput="CC_onHauteurGlobalInput()"> <span class="dim-suf">po</span></span>
         </span>
         <span class="dim-mm" id="CC_hauteurGlobalMm" style="display:none"><input type="text" id="CC_hauteurGlobal_mm" class="tbl-input dim-in" size="4" oninput="CC_onHauteurGlobalInput()"> <span class="dim-suf">mm</span></span>
+        <button type="button" class="btn-jeu-apply" style="margin-top:2px" onclick="CC_applyHauteurAll()">Appliquer hauteur</button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">&Eacute;paisseur murs <span id="CC_mursEpUnit">(po)</span></label>
-        <input type="text" id="CC_mursEp" class="jeu-global-input" style="width:80px" value="5.5" oninput="CC_onMursEpInput()">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">&Eacute;paisseur murs <span id="CC_mursEpUnit">(po)</span></label>
+        <input type="text" id="CC_mursEp" class="jeu-global-input zone-hdr-input" value="5.5" oninput="CC_onMursEpInput()">
+        <input type="range" class="cfg-slider" id="CC_mursEpSlider" min="3.5" max="16.75" step="0.25" value="5.5" oninput="CC_onZoneSlider('murs','ep')">
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">R calcul&eacute;</label>
-        <input type="text" id="CC_mursRHdr" class="jeu-global-input computed" style="width:80px;background:var(--surface-3);color:var(--ink-3)" readonly tabindex="-1">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Valeur R</label>
+        <input type="text" id="CC_mursRHdr" class="jeu-global-input zone-hdr-input computed" style="background:var(--surface-3);color:var(--ink-3)" readonly tabindex="-1">
+        <input type="range" class="cfg-slider" id="CC_mursRSlider" min="13" max="59" step="1" value="19" oninput="CC_onZoneSlider('murs','r')">
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Densit&eacute; (lbs/pi&sup3;)</label>
-        <input type="text" id="CC_mursDens" class="jeu-global-input" style="width:80px" value="4.0" oninput="CC_onZoneHeaderChange('murs')">
-      </div>
-      <div style="display:flex;align-items:flex-end;gap:8px;padding-bottom:2px">
-        <button type="button" class="btn-jeu-apply" onclick="CC_applyHauteurAll()">Appliquer hauteur &agrave; tous</button>
-        <button type="button" class="btn-jeu-apply" onclick="CC_applyEpMursAll()">Appliquer &eacute;p. &agrave; tous</button>
-      </div>
-    </div>
-    <div class="zone-sliders">
-      <div class="zone-slider-row">
-        <span class="zone-slider-lbl">&Eacute;paisseur</span>
-        <input type="range" id="CC_mursEpSlider" min="3.5" max="16.75" step="0.25" value="5.5" oninput="CC_onZoneSlider('murs','ep')">
-      </div>
-      <div class="zone-slider-row">
-        <span class="zone-slider-lbl">Valeur R</span>
-        <input type="range" id="CC_mursRSlider" min="13" max="59" step="1" value="19" oninput="CC_onZoneSlider('murs','r')">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Densit&eacute; (lbs/pi&sup3;)</label>
+        <input type="text" id="CC_mursDens" class="jeu-global-input zone-hdr-input" value="4.0" oninput="CC_onZoneHeaderChange('murs')">
+        <button type="button" class="btn-jeu-apply" style="margin-top:2px" onclick="CC_applyEpMursAll()">Appliquer &eacute;p.</button>
       </div>
     </div>
     <div class="col-toggles" style="margin-top:14px">
