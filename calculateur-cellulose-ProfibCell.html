@@ -240,7 +240,16 @@
       </div>
       <button type="button" class="btn-jeu-apply" style="margin-top:16px" onclick="CC_applyZoneHeaderAll('grenier')">Appliquer &agrave; toutes</button>
     </div>
-    <div class="col-toggles" id="CC_cols_grenier" style="margin-top:14px">
+    <div class="zone-sliders">
+      <div class="zone-slider-row">
+        <span class="zone-slider-lbl">Valeur R</span>
+        <input type="range" id="CC_grenierRSlider" min="12" max="120" step="1" value="60" oninput="CC_onZoneSlider('grenier','r')">
+      </div>
+      <div class="zone-slider-row">
+        <span class="zone-slider-lbl">&Eacute;paisseur</span>
+        <input type="range" id="CC_grenierEpSlider" min="3.5" max="34" step="0.25" value="17" oninput="CC_onZoneSlider('grenier','ep')">
+      </div>
+    </div>
       <span class="ct-lbl">Colonnes</span>
       <label><input type="checkbox" checked onchange="CC_toggleCol('grenier','surf',this.checked)"> Surface</label>
       <label><input type="checkbox" checked onchange="CC_toggleCol('grenier','r',this.checked)"> Valeur R</label>
@@ -294,6 +303,16 @@
         <input type="text" id="CC_plafondDens" class="jeu-global-input" style="width:80px" value="2.0" oninput="CC_onZoneHeaderChange('plafonds')">
       </div>
       <button type="button" class="btn-jeu-apply" style="margin-top:16px" onclick="CC_applyZoneHeaderAll('plafonds')">Appliquer &agrave; toutes</button>
+    </div>
+    <div class="zone-sliders">
+      <div class="zone-slider-row">
+        <span class="zone-slider-lbl">Hauteur</span>
+        <input type="range" id="CC_plafondEpSlider" min="3.5" max="16.75" step="0.125" value="11.875" oninput="CC_onZoneSlider('plafonds','ep')">
+      </div>
+      <div class="zone-slider-row">
+        <span class="zone-slider-lbl">Valeur R</span>
+        <input type="range" id="CC_plafondRSlider" min="13" max="59" step="1" value="42" oninput="CC_onZoneSlider('plafonds','r')">
+      </div>
     </div>
     <div class="col-toggles" style="margin-top:14px">
       <span class="ct-lbl">Colonnes</span>
@@ -349,12 +368,26 @@
         <input type="text" id="CC_mursEp" class="jeu-global-input" style="width:80px" value="5.5" oninput="CC_onMursEpInput()">
       </div>
       <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">R calcul&eacute;</label>
+        <input type="text" id="CC_mursRHdr" class="jeu-global-input computed" style="width:80px;background:var(--surface-3);color:var(--ink-3)" readonly tabindex="-1">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
         <label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">Densit&eacute; (lbs/pi&sup3;)</label>
         <input type="text" id="CC_mursDens" class="jeu-global-input" style="width:80px" value="4.0" oninput="CC_onZoneHeaderChange('murs')">
       </div>
       <div style="display:flex;align-items:flex-end;gap:8px;padding-bottom:2px">
         <button type="button" class="btn-jeu-apply" onclick="CC_applyHauteurAll()">Appliquer hauteur &agrave; tous</button>
         <button type="button" class="btn-jeu-apply" onclick="CC_applyEpMursAll()">Appliquer &eacute;p. &agrave; tous</button>
+      </div>
+    </div>
+    <div class="zone-sliders">
+      <div class="zone-slider-row">
+        <span class="zone-slider-lbl">&Eacute;paisseur</span>
+        <input type="range" id="CC_mursEpSlider" min="3.5" max="16.75" step="0.25" value="5.5" oninput="CC_onZoneSlider('murs','ep')">
+      </div>
+      <div class="zone-slider-row">
+        <span class="zone-slider-lbl">Valeur R</span>
+        <input type="range" id="CC_mursRSlider" min="13" max="59" step="1" value="19" oninput="CC_onZoneSlider('murs','r')">
       </div>
     </div>
     <div class="col-toggles" style="margin-top:14px">
@@ -511,7 +544,7 @@
       </div>
     </div>
     <div class="mat-cond">
-      <div class="cond-field fixed"><span class="cond-label">kg / sac</span><input class="cond-input" type="text" id="CC_pCellKg" value="12.7" readonly tabindex="-1"></div>
+      <div class="cond-field fixed"><span class="cond-label" id="CC_pCellKgLabel">kg / sac</span><input class="cond-input" type="text" id="CC_pCellKg" value="12.7" readonly tabindex="-1"></div>
       <div class="cond-field fixed"><span class="cond-label">sacs / palette</span><input class="cond-input" type="text" id="CC_pCellPal" value="42" readonly tabindex="-1"></div>
       <span class="cond-tag"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Fix&eacute; par le fabricant</span>
     </div>
