@@ -243,6 +243,7 @@
       <div class="zone-hdr-field">
         <label class="zone-hdr-lbl">Densit&eacute; (lbs/pi&sup3;)</label>
         <input type="text" id="CC_grenierDens" class="jeu-global-input zone-hdr-input" value="1.52" oninput="CC_onZoneHeaderChange('grenier')">
+        <input type="range" class="cfg-slider" id="CC_grenierDensSlider" min="1" max="4" step="0.01" value="1.52" oninput="CC_onZoneDensSlider('grenier')">
       </div>
       <button type="button" class="btn-jeu-apply" style="margin-top:16px" onclick="CC_applyZoneHeaderAll('grenier')">Appliquer &agrave; toutes</button>
     </div>
@@ -256,13 +257,14 @@
     <div class="table-wrap" style="margin-top:10px">
       <table id="CC_tbl_grenier">
         <thead><tr>
-          <th style="width:130px">Identification</th><th style="width:40px">Qt&eacute;</th>
+          <th style="width:130px">Identification <span class="th-unit">texte</span></th><th style="width:40px">Qt&eacute; <span class="th-unit">nb</span></th>
           <th>Longueur <span class="th-unit" id="CC_thu_grenier_l">(pi &middot; po)</span></th>
           <th>Largeur <span class="th-unit" id="CC_thu_grenier_w">(pi &middot; po)</span></th>
           <th class="col-surf">Surface <span class="th-unit" id="CC_thu_grenier_surf">(pi&sup2;)</span></th>
-          <th class="col-r">Valeur R</th>
+          <th class="col-r">Valeur R <span class="th-unit" id="CC_thu_grenier_r">(R)</span></th>
+          
           <th class="col-ep">&Eacute;pais. <span class="th-unit" id="CC_thu_grenier_ep">(po)</span></th>
-          <th class="col-sacs">Sacs</th>
+          <th class="col-sacs">Sacs <span class="th-unit">nb</span></th>
           <th style="width:54px"></th>
         </tr></thead>
         <tbody id="CC_tbody_grenier"></tbody>
@@ -300,6 +302,7 @@
       <div class="zone-hdr-field">
         <label class="zone-hdr-lbl">Densit&eacute; (lbs/pi&sup3;)</label>
         <input type="text" id="CC_plafondDens" class="jeu-global-input zone-hdr-input" value="2.0" oninput="CC_onZoneHeaderChange('plafonds')">
+        <input type="range" class="cfg-slider" id="CC_plafondDensSlider" min="1.52" max="4" step="0.01" value="2" oninput="CC_onZoneDensSlider('plafonds')">
       </div>
       <button type="button" class="btn-jeu-apply" style="margin-top:16px" onclick="CC_applyZoneHeaderAll('plafonds')">Appliquer &agrave; toutes</button>
     </div>
@@ -313,13 +316,14 @@
     <div class="table-wrap" style="margin-top:10px">
       <table id="CC_tbl_plafonds">
         <thead><tr>
-          <th style="width:130px">Identification</th><th style="width:40px">Qt&eacute;</th>
+          <th style="width:130px">Identification <span class="th-unit">texte</span></th><th style="width:40px">Qt&eacute; <span class="th-unit">nb</span></th>
           <th>Longueur <span class="th-unit" id="CC_thu_plafonds_l">(pi &middot; po)</span></th>
           <th>Largeur <span class="th-unit" id="CC_thu_plafonds_w">(pi &middot; po)</span></th>
           <th class="col-surf">Surface <span class="th-unit" id="CC_thu_plafonds_surf">(pi&sup2;)</span></th>
-          <th class="col-r">Valeur R</th>
+          <th class="col-r">Valeur R <span class="th-unit" id="CC_thu_plafonds_r">(R)</span></th>
+          
           <th class="col-ep">&Eacute;pais. <span class="th-unit" id="CC_thu_plafonds_ep">(po)</span></th>
-          <th class="col-sacs">Sacs</th>
+          <th class="col-sacs">Sacs <span class="th-unit">nb</span></th>
           <th style="width:54px"></th>
         </tr></thead>
         <tbody id="CC_tbody_plafonds"></tbody>
@@ -366,6 +370,7 @@
       <div class="zone-hdr-field">
         <label class="zone-hdr-lbl">Densit&eacute; (lbs/pi&sup3;)</label>
         <input type="text" id="CC_mursDens" class="jeu-global-input zone-hdr-input" value="4.0" oninput="CC_onZoneHeaderChange('murs')">
+        <input type="range" class="cfg-slider" id="CC_mursDensSlider" min="3" max="4" step="0.1" value="4" oninput="CC_onZoneDensSlider('murs')">
         <button type="button" class="btn-jeu-apply" style="margin-top:2px" onclick="CC_applyEpMursAll()">Appliquer &eacute;p.</button>
       </div>
     </div>
@@ -379,13 +384,14 @@
     <div class="table-wrap" style="margin-top:10px">
       <table id="CC_tbl_murs">
         <thead><tr>
-          <th style="width:130px">Identification</th><th style="width:40px">Qt&eacute;</th>
+          <th style="width:130px">Identification <span class="th-unit">texte</span></th><th style="width:40px">Qt&eacute; <span class="th-unit">nb</span></th>
           <th>Longueur <span class="th-unit" id="CC_thu_murs_l">(pi &middot; po)</span></th>
           <th>Hauteur <span class="th-unit" id="CC_thu_murs_h">(pi &middot; po)</span></th>
           <th class="col-surf">Surface <span class="th-unit" id="CC_thu_murs_surf">(pi&sup2;)</span></th>
-          <th class="col-r">Valeur R</th>
+          <th class="col-r">Valeur R <span class="th-unit" id="CC_thu_murs_r">(R)</span></th>
+          
           <th class="col-ep">&Eacute;pais. <span class="th-unit" id="CC_thu_murs_ep">(po)</span></th>
-          <th class="col-sacs">Sacs</th>
+          <th class="col-sacs">Sacs <span class="th-unit">nb</span></th>
           <th style="width:54px"></th>
         </tr></thead>
         <tbody id="CC_tbody_murs"></tbody>
@@ -418,7 +424,7 @@
     <div class="table-wrap" style="margin-top:10px">
       <table id="CC_tbl_pig">
         <thead><tr>
-          <th style="width:100px">Identification</th><th style="width:40px">Qt&eacute;</th>
+          <th style="width:100px">Identification <span class="th-unit">texte</span></th><th style="width:40px">Qt&eacute; <span class="th-unit">nb</span></th>
           <th style="width:120px">Type</th>
           <th>Base 1 <span class="th-unit" id="CC_thu_pig_l1">(pi &middot; po)</span></th>
           <th>Pente 1 <span class="th-unit">:12</span></th>
@@ -427,7 +433,7 @@
           <th class="col-surf">Surf <span class="th-unit" id="CC_thu_pig_surf">(pi&sup2;)</span></th>
           <th class="col-seg">Seg. &nearr; <span class="th-unit" id="CC_thu_pig_seg">(pi)</span></th>
           <th>&Eacute;pais. <span class="th-unit" id="CC_thu_pig_ep">(po)</span></th>
-          <th class="col-sacs">Sacs</th>
+          <th class="col-sacs">Sacs <span class="th-unit">nb</span></th>
           <th style="width:54px"></th>
         </tr></thead>
         <tbody id="CC_tbody_pig"></tbody>
@@ -466,13 +472,13 @@
     <div class="table-wrap" style="margin-top:10px">
       <table id="CC_tbl_ouv">
         <thead><tr>
-          <th style="width:70px">Code</th><th style="width:70px">Emplacement</th><th style="width:38px">Qt&eacute;</th>
+          <th style="width:70px">Code <span class="th-unit">texte</span></th><th style="width:70px">Emplacement <span class="th-unit">texte</span></th><th style="width:38px">Qt&eacute; <span class="th-unit">nb</span></th>
           <th>Largeur <span class="th-unit" id="CC_thu_ouv_l">(pi &middot; po)</span></th>
           <th>Hauteur <span class="th-unit" id="CC_thu_ouv_h">(pi &middot; po)</span></th>
           <th style="width:64px">Jeu <span class="th-unit" id="CC_thu_ouv_jeu">(po)</span></th>
           <th class="col-surf">Surface <span class="th-unit" id="CC_thu_ouv_surf">(pi&sup2;)</span></th>
           <th class="col-perim">P&eacute;rim. <span class="th-unit" id="CC_thu_ouv_perim">(pi)</span></th>
-          <th class="col-sacs">Sacs</th>
+          <th class="col-sacs">Sacs <span class="th-unit">nb</span></th>
           <th style="width:54px"></th>
         </tr></thead>
         <tbody id="CC_tbody_ouv"></tbody>
