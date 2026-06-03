@@ -155,55 +155,60 @@
       <!-- Grenier -->
       <div class="config-zone-card">
         <div class="config-zone-title">Grenier / entretoit</div>
-        <div>
-          <div class="field-label">Valeur R cible</div>
-          <input class="field-input" type="text" id="CC_cfgGrenierR" value="60" oninput="CC_onCfgChange('grenier')">
+        <div class="cfg-field">
+          <div class="field-label">&Eacute;paisseur (po)</div>
+          <input class="field-input" type="text" id="CC_cfgGrenierEp" value="17" oninput="CC_onCfgInput('grenier','epTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgGrenierEpSlider" min="3.5" max="34" step="0.25" value="17" oninput="CC_onCfgInput('grenier','epSld')">
         </div>
-        <div>
+        <div class="cfg-field">
+          <div class="field-label">Valeur R</div>
+          <input class="field-input" type="text" id="CC_cfgGrenierR" value="60" oninput="CC_onCfgInput('grenier','rTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgGrenierRSlider" min="12" max="120" step="1" value="60" oninput="CC_onCfgInput('grenier','rSld')">
+        </div>
+        <div class="cfg-field">
           <div class="field-label">Densit&eacute; (lbs/pi&sup3;) &mdash; 1&ndash;4</div>
-          <input class="field-input" type="text" id="CC_cfgGrenierDens" value="1.52" oninput="CC_onCfgChange('grenier')">
+          <input class="field-input" type="text" id="CC_cfgGrenierDens" value="1.52" oninput="CC_onCfgInput('grenier','densTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgGrenierDensSlider" min="1" max="4" step="0.01" value="1.52" oninput="CC_onCfgInput('grenier','densSld')">
         </div>
-        <div style="font-size:11px;color:var(--ink-3);margin-top:2px">
-          &Eacute;paisseur calcul&eacute;e&nbsp;: <strong id="CC_cfgGrenierEp">—</strong>
-        </div>
-        <button class="btn-jeu-apply config-zone-apply" onclick="CC_applyCfgToAll('grenier')">Appliquer &agrave; toutes les lignes</button>
       </div>
       <!-- Murs -->
       <div class="config-zone-card">
         <div class="config-zone-title">Murs haute densit&eacute;</div>
-        <div>
-          <div class="field-label">&Eacute;paisseur murs <span id="CC_cfgMursEpUnit">(po)</span></div>
-          <span class="dim-imp" id="CC_cfgMursEpImp" style="display:inline-flex">
-            <span class="dim-pair"><input type="text" id="CC_cfgMurs_pi" class="tbl-input dim-in" size="3" value="5" oninput="CC_onCfgChange('murs')"> <span class="dim-suf">pi</span></span>
-            <span class="dim-pair"><input type="text" id="CC_cfgMurs_po" class="tbl-input dim-in" size="3" value="5.5" oninput="CC_onCfgChange('murs')"> <span class="dim-suf">po</span></span>
-          </span>
-          <span class="dim-mm" id="CC_cfgMursMm" style="display:none"><input type="text" id="CC_cfgMurs_mm" class="tbl-input dim-in" size="5" oninput="CC_onCfgChange('murs')"> <span class="dim-suf">mm</span></span>
+        <div class="cfg-field">
+          <div class="field-label">&Eacute;paisseur murs (po)</div>
+          <input class="field-input" type="text" id="CC_cfgMursEp" value="5.5" oninput="CC_onCfgInput('murs','epTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgMursEpSlider" min="3.5" max="16.75" step="0.25" value="5.5" oninput="CC_onCfgInput('murs','epSld')">
         </div>
-        <div>
+        <div class="cfg-field">
+          <div class="field-label">Valeur R</div>
+          <input class="field-input" type="text" id="CC_cfgMursR" value="19" oninput="CC_onCfgInput('murs','rTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgMursRSlider" min="13" max="59" step="1" value="19" oninput="CC_onCfgInput('murs','rSld')">
+        </div>
+        <div class="cfg-field">
           <div class="field-label">Densit&eacute; (lbs/pi&sup3;) &mdash; 3&ndash;4</div>
-          <input class="field-input" type="text" id="CC_cfgMursDens" value="4.0" oninput="CC_onCfgChange('murs')">
+          <input class="field-input" type="text" id="CC_cfgMursDens" value="4.0" oninput="CC_onCfgInput('murs','densTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgMursDensSlider" min="3" max="4" step="0.1" value="4" oninput="CC_onCfgInput('murs','densSld')">
         </div>
-        <div style="font-size:11px;color:var(--ink-3);margin-top:2px">
-          R calcul&eacute;&nbsp;: <strong id="CC_cfgMursR">—</strong>
-        </div>
-        <button class="btn-jeu-apply config-zone-apply" onclick="CC_applyCfgToAll('murs')">Appliquer &agrave; toutes les lignes</button>
       </div>
       <!-- Plafond-plancher -->
       <div class="config-zone-card">
         <div class="config-zone-title">Plafond-plancher (poutrelles)</div>
-        <div>
-          <div class="field-label">Hauteur poutrelles <span id="CC_cfgPlafondsHtUnit">(po)</span></div>
-          <input class="field-input" type="text" id="CC_cfgPlafondsHt" value="11.875" oninput="CC_onCfgChange('plafonds')">
-          <div style="font-size:10px;color:var(--ink-4);margin-top:3px">11 7/8 po par d&eacute;faut</div>
+        <div class="cfg-field">
+          <div class="field-label">&Eacute;paisseur (po)</div>
+          <input class="field-input" type="text" id="CC_cfgPlafondsEp" value="11.875" oninput="CC_onCfgInput('plafonds','epTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgPlafondsEpSlider" min="3.5" max="16.75" step="0.125" value="11.875" oninput="CC_onCfgInput('plafonds','epSld')">
+          <div style="font-size:10px;color:var(--ink-4);margin-top:2px">11 7/8 po par d&eacute;faut</div>
         </div>
-        <div>
+        <div class="cfg-field">
+          <div class="field-label">Valeur R</div>
+          <input class="field-input" type="text" id="CC_cfgPlafondsR" value="42" oninput="CC_onCfgInput('plafonds','rTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgPlafondsRSlider" min="13" max="59" step="1" value="42" oninput="CC_onCfgInput('plafonds','rSld')">
+        </div>
+        <div class="cfg-field">
           <div class="field-label">Densit&eacute; (lbs/pi&sup3;) &mdash; 1,52&ndash;4</div>
-          <input class="field-input" type="text" id="CC_cfgPlafondsDens" value="2.0" oninput="CC_onCfgChange('plafonds')">
+          <input class="field-input" type="text" id="CC_cfgPlafondsDens" value="2.0" oninput="CC_onCfgInput('plafonds','densTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgPlafondsDensSlider" min="1.52" max="4" step="0.01" value="2" oninput="CC_onCfgInput('plafonds','densSld')">
         </div>
-        <div style="font-size:11px;color:var(--ink-3);margin-top:2px">
-          R calcul&eacute;&nbsp;: <strong id="CC_cfgPlafondsR">—</strong>
-        </div>
-        <button class="btn-jeu-apply config-zone-apply" onclick="CC_applyCfgToAll('plafonds')">Appliquer &agrave; toutes les lignes</button>
       </div>
     </div>
   </div>
