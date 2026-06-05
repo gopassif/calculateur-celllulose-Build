@@ -166,7 +166,7 @@
           <input type="range" class="cfg-slider" id="CC_cfgGrenierRSlider" min="12" max="120" step="1" value="60" oninput="CC_onCfgInput('grenier','rSld')">
         </div>
         <div class="cfg-field">
-          <div class="field-label">Densit&eacute; (lbs/pi&sup3;) &mdash; 1&ndash;4</div>
+          <div class="field-label">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span> &mdash; 1&ndash;4</div>
           <input class="field-input" type="text" id="CC_cfgGrenierDens" value="1.52" oninput="CC_onCfgInput('grenier','densTxt')">
           <input type="range" class="cfg-slider" id="CC_cfgGrenierDensSlider" min="1" max="4" step="0.01" value="1.52" oninput="CC_onCfgInput('grenier','densSld')">
         </div>
@@ -185,7 +185,7 @@
           <input type="range" class="cfg-slider" id="CC_cfgMursRSlider" min="13" max="59" step="1" value="19" oninput="CC_onCfgInput('murs','rSld')">
         </div>
         <div class="cfg-field">
-          <div class="field-label">Densit&eacute; (lbs/pi&sup3;) &mdash; 3&ndash;4</div>
+          <div class="field-label">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span> &mdash; 3&ndash;4</div>
           <input class="field-input" type="text" id="CC_cfgMursDens" value="4.0" oninput="CC_onCfgInput('murs','densTxt')">
           <input type="range" class="cfg-slider" id="CC_cfgMursDensSlider" min="3" max="4" step="0.1" value="4" oninput="CC_onCfgInput('murs','densSld')">
         </div>
@@ -205,7 +205,7 @@
           <input type="range" class="cfg-slider" id="CC_cfgPlafondsRSlider" min="13" max="59" step="1" value="42" oninput="CC_onCfgInput('plafonds','rSld')">
         </div>
         <div class="cfg-field">
-          <div class="field-label">Densit&eacute; (lbs/pi&sup3;) &mdash; 1,52&ndash;4</div>
+          <div class="field-label">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span> &mdash; 1,52&ndash;4</div>
           <input class="field-input" type="text" id="CC_cfgPlafondsDens" value="2.0" oninput="CC_onCfgInput('plafonds','densTxt')">
           <input type="range" class="cfg-slider" id="CC_cfgPlafondsDensSlider" min="1.52" max="4" step="0.01" value="2" oninput="CC_onCfgInput('plafonds','densSld')">
         </div>
@@ -241,7 +241,7 @@
         <input type="range" class="cfg-slider" id="CC_grenierEpSlider" min="3.5" max="34" step="0.25" value="17" oninput="CC_onZoneSlider('grenier','ep')">
       </div>
       <div class="zone-hdr-field">
-        <label class="zone-hdr-lbl">Densit&eacute; (lbs/pi&sup3;)</label>
+        <label class="zone-hdr-lbl">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span></label>
         <input type="text" id="CC_grenierDens" class="jeu-global-input zone-hdr-input" value="1.52" oninput="CC_onZoneHeaderChange('grenier')">
         <input type="range" class="cfg-slider" id="CC_grenierDensSlider" min="1" max="4" step="0.01" value="1.52" oninput="CC_onZoneDensSlider('grenier')">
       </div>
@@ -300,7 +300,7 @@
         <input type="range" class="cfg-slider" id="CC_plafondRSlider" min="13" max="59" step="1" value="42" oninput="CC_onZoneSlider('plafonds','r')">
       </div>
       <div class="zone-hdr-field">
-        <label class="zone-hdr-lbl">Densit&eacute; (lbs/pi&sup3;)</label>
+        <label class="zone-hdr-lbl">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span></label>
         <input type="text" id="CC_plafondDens" class="jeu-global-input zone-hdr-input" value="2.0" oninput="CC_onZoneHeaderChange('plafonds')">
         <input type="range" class="cfg-slider" id="CC_plafondDensSlider" min="1.52" max="4" step="0.01" value="2" oninput="CC_onZoneDensSlider('plafonds')">
       </div>
@@ -368,7 +368,7 @@
         <input type="range" class="cfg-slider" id="CC_mursRSlider" min="13" max="59" step="1" value="19" oninput="CC_onZoneSlider('murs','r')">
       </div>
       <div class="zone-hdr-field">
-        <label class="zone-hdr-lbl">Densit&eacute; (lbs/pi&sup3;)</label>
+        <label class="zone-hdr-lbl">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span></label>
         <input type="text" id="CC_mursDens" class="jeu-global-input zone-hdr-input" value="4.0" oninput="CC_onZoneHeaderChange('murs')">
         <input type="range" class="cfg-slider" id="CC_mursDensSlider" min="3" max="4" step="0.1" value="4" oninput="CC_onZoneDensSlider('murs')">
         <button type="button" class="btn-jeu-apply" style="margin-top:2px" onclick="CC_applyEpMursAll()">Appliquer &eacute;p.</button>
@@ -414,6 +414,24 @@
   <div class="card">
     <div class="card-title">
       <div class="ct-left"><span class="step-badge">6</span><span>Murs - Portions en pignon</span></div>
+    </div>
+    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px;align-items:flex-start">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">&Eacute;paisseur pignon <span id="CC_pigEpUnit">(po)</span></label>
+        <input type="text" id="CC_pigEp" class="jeu-global-input zone-hdr-input" value="5.5" oninput="CC_onZoneHeaderChange('pig')">
+        <input type="range" class="cfg-slider" id="CC_pigEpSlider" min="3.5" max="16.75" step="0.25" value="5.5" oninput="CC_onZoneSlider('pig','ep')">
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Valeur R</label>
+        <input type="text" id="CC_pigRHdr" class="jeu-global-input zone-hdr-input computed" style="background:var(--surface-3);color:var(--ink-3)" readonly tabindex="-1">
+        <input type="range" class="cfg-slider" id="CC_pigRSlider" min="13" max="59" step="1" value="19" oninput="CC_onZoneSlider('pig','r')">
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span></label>
+        <input type="text" id="CC_pigDens" class="jeu-global-input zone-hdr-input" value="4.0" oninput="CC_onZoneHeaderChange('pig')">
+        <input type="range" class="cfg-slider" id="CC_pigDensSlider" min="3" max="4" step="0.1" value="4" oninput="CC_onZoneDensSlider('pig')">
+        <button type="button" class="btn-jeu-apply" style="margin-top:2px" onclick="CC_applyEpPigAll()">Appliquer &eacute;p.</button>
+      </div>
     </div>
     <div class="col-toggles">
       <span class="ct-lbl">Colonnes</span>
