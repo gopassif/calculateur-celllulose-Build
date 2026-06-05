@@ -161,9 +161,9 @@ function CC_dispR(r){return CC_unitSystem==='mm'?'RSI-'+CC_fmt(r/CC_R_TO_RSI,2):
 function CC_dispLenFt(ft){return CC_unitSystem==='mm'?CC_fmt(ft*CC_PI_M,2):CC_fmt(ft,2);}
 // ── Champs scalaires éditables : affichage en unité courante, stockage canonique impérial ──
 var CC_LB_KGM3=16.018463;   // lb/pi³ → kg/m³
-function CC_epDispV(po){return CC_unitSystem==='mm'?CC_fmt(po*CC_IN2MM,0):(po===Math.round(po)?String(po):CC_fmt(po,2));}
+function CC_epDispV(po){po=CC_pf(po);return CC_unitSystem==='mm'?CC_fmt(po*CC_IN2MM,0):(po===Math.round(po)?String(po):CC_fmt(po,2));}
 function CC_epCanonV(v){var n=CC_pf(v);return CC_unitSystem==='mm'?n/CC_IN2MM:n;}
-function CC_densDispV(lb){return CC_unitSystem==='mm'?CC_fmt(lb*CC_LB_KGM3,1):(lb===Math.round(lb)?String(lb):CC_fmt(lb,2));}
+function CC_densDispV(lb){lb=CC_pf(lb);return CC_unitSystem==='mm'?CC_fmt(lb*CC_LB_KGM3,1):(lb===Math.round(lb)?String(lb):CC_fmt(lb,2));}
 function CC_densCanonV(v){var n=CC_pf(v);return CC_unitSystem==='mm'?n/CC_LB_KGM3:n;}
 function CC_rDispV(r){return CC_unitSystem==='mm'?CC_fmt(r/CC_R_TO_RSI,2):String(Math.round(r));}
 function CC_rCanonV(v){var n=CC_pf(v);return CC_unitSystem==='mm'?n*CC_R_TO_RSI:n;}
@@ -1228,7 +1228,7 @@ function CC_recalc(){
     var dRow=row.dens||grenierDens;
     var epRow=CC_interpR2Ep('grenier',rRow);
     var sacs=CC_sacsForSurf('grenier',lineSurf,epRow,dRow);
-    row._sacs=sacs;
+    row._sacs=sacs;row._rCalc=rRow;row._epCalc=epRow;row._densCalc=dRow;
     var surfEl=CC_gid('CC_surf_'+row.id);
     if(surfEl&&res.fromDims&&document.activeElement!==surfEl)surfEl.value=lineSurf?CC_dispSurf(lineSurf):'';
     var rEl=CC_gid('CC_r_'+row.id);if(rEl)rEl.value=CC_dispR(rRow);
@@ -1253,7 +1253,7 @@ function CC_recalc(){
     var dRow=row.dens||plafondDens;
     var rRow=CC_interpEp2R('plafonds',htRow);
     var sacs=CC_sacsForSurf('plafonds',lineSurf,htRow,dRow);
-    row._sacs=sacs;
+    row._sacs=sacs;row._rCalc=rRow;row._epCalc=htRow;row._densCalc=dRow;
     var surfEl=CC_gid('CC_surf_'+row.id);if(surfEl&&res.fromDims&&document.activeElement!==surfEl)surfEl.value=lineSurf?CC_dispSurf(lineSurf):'';
     var rEl=CC_gid('CC_r_'+row.id);if(rEl)rEl.value=CC_dispR(rRow);
     var epEl=CC_gid('CC_ep_'+row.id);if(epEl)epEl.value=CC_dispEp(htRow);
@@ -1272,7 +1272,7 @@ function CC_recalc(){
     var dRow=CC_pf(row.dens)||4.0;
     var rRow=CC_rForMurEpDens(epRow,dRow);
     var sacs=CC_sacsForSurf('murs',lineSurf,epRow,dRow);
-    row._sacs=sacs;
+    row._sacs=sacs;row._rCalc=rRow;row._epCalc=epRow;row._densCalc=dRow;
     var surfEl=CC_gid('CC_surf_'+row.id);if(surfEl&&res.fromDims&&document.activeElement!==surfEl)surfEl.value=lineSurf?CC_dispSurf(lineSurf):'';
     var rEl=CC_gid('CC_r_'+row.id);if(rEl)rEl.textContent=CC_dispR(rRow);
     var sacsEl=CC_gid('CC_sacs_'+row.id);if(sacsEl)sacsEl.textContent=CC_fmtInt(sacs);
@@ -1311,7 +1311,7 @@ function CC_recalc(){
     var epRow=CC_pf(row.ep)||5.5;
     var dRow=CC_pf(row.dens)||4.0;
     var sacs=CC_sacsForSurf('murs',lineSurf,epRow,dRow);
-    row._sacs=sacs;
+    row._sacs=sacs;row._seg=seg;row._rCalc=CC_rForMurEpDens(epRow,dRow);row._epCalc=epRow;row._densCalc=dRow;
     var surfEl=CC_gid('CC_surf_'+row.id);if(surfEl)surfEl.textContent=CC_dispSurf(lineSurf);
     var segEl=CC_gid('CC_seg_'+row.id);if(segEl)segEl.textContent=CC_dispLenFt(seg);
     var sacsEl=CC_gid('CC_sacs_'+row.id);if(sacsEl)sacsEl.textContent=CC_fmtInt(sacs);
@@ -1335,7 +1335,7 @@ function CC_recalc(){
       perim=2*(lTot+hTot)/12;
     } else { surf=0; perim=0; }
     var lineSurf=surf*qty;
-    row._surf=lineSurf;
+    row._surf=lineSurf;row._perim=perim*qty;row._lpo=l_po;row._hpo=h_po;row._jeu=jeu;
     // Sacs à retrancher (en utilisant l'épaisseur moyenne des murs)
     var epMurs=CC_fldEp('CC_mursEp')||5.5;
     var dMurs=CC_fldDens('CC_mursDens')||4.0;
@@ -1652,123 +1652,307 @@ function CC_importJSON(input){
 // ─────────────────────────────────────────────────────────
 //  EXPORT PDF
 // ─────────────────────────────────────────────────────────
+var CC_BUREAU={
+  nom:'Go Passif',
+  adr1:'St-J\u00e9r\u00f4me: 229, boul. Maisonneuve, St-J\u00e9r\u00f4me, QC  J5L 0A1',
+  adr2:'Longueuil: 2465, rue de la Province, Longueuil, QC  J4G 1G3',
+  tel:'1-450-592-0592',
+  email:'info@gopassif.com'
+};
+var CC_LIB_JSPDF_CDN='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+var CC_LIB_AUTOT_CDN='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+
+// Rassemble les données d'export (totaux, par zone) à partir des rangées calculées.
+function CC_getExportData(){
+  var buf=Math.round((CC_getBuf()||0));
+  function zsum(z){var s=0,surf=0;(CC_rows[z]||[]).forEach(function(r){s+=r._sacs||0;surf+=r._surf||0;});return {sacs:s,surf:surf};}
+  var Zg=zsum('grenier'),Zp=zsum('plafonds'),Zm=zsum('murs'),Zpg=zsum('pig'),Zo=zsum('ouv');
+  var netMurs=Math.max(0,Zm.sacs+Zpg.sacs-Zo.sacs);
+  var netTotal=Zg.sacs+Zp.sacs+netMurs;
+  var bufTotal=Math.ceil(netTotal*(1+buf/100));
+  var palTotal=Math.ceil(bufTotal/42);
+  var surfTot=Zg.surf+Zp.surf+Zm.surf+Zpg.surf; // pi² (ouvertures non soustraites de la surface)
+  return {
+    buf:buf,
+    zones:{grenier:Zg,plafonds:Zp,murs:Zm,pig:Zpg,ouv:Zo},
+    netMurs:netMurs, netTotal:netTotal, bufTotal:bufTotal, palTotal:palTotal, surfTot:surfTot,
+    proj:{
+      no:(CC_gid('CC_projNo')||{}).value||'',
+      nom:(CC_gid('CC_projNom')||{}).value||'',
+      cli:(CC_gid('CC_projCli')||{}).value||'',
+      ent:(CC_gid('CC_projEnt')||{}).value||'',
+      adresse:(CC_gid('CC_projAdr')||{}).value||'',
+      ville:(CC_gid('CC_projVille')||{}).value||'',
+      prov:(CC_gid('CC_projProv')||{}).value||'',
+      cp:(CC_gid('CC_projCP')||{}).value||'',
+      notes:(CC_gid('CC_projNotes')||{}).value||''
+    },
+    sections:CC_sections.slice(),
+    multiSection:CC_sections.length>1
+  };
+}
+
 function CC_exportPDF(){
-  var overlay=CC_gid('CC_exportOverlay');
-  var msg=CC_gid('CC_exportMsg');
+  var overlay=CC_gid('CC_exportOverlay'),msg=CC_gid('CC_exportMsg');
   if(overlay)overlay.classList.add('visible');
   if(msg)msg.textContent='Chargement de jsPDF\u2026';
-
-  // Charger jsPDF si pas déjà présent
-  function doExport(){
+  function done(){if(overlay)overlay.classList.remove('visible');}
+  function doIt(){
     if(msg)msg.textContent='G\u00e9n\u00e9ration du PDF\u2026';
-    try{
-      var jsPDF=window.jspdf?window.jspdf.jsPDF:window.jsPDF;
-      var autoTable=window.jspdf&&window.jspdf.autoTable;
-      var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
-      var primary=[26,26,26];
-      var light=[240,240,240];
-      var W=doc.internal.pageSize.getWidth();
-      var buf=CC_getBuf();
-      var proj={
-        no:CC_gid('CC_projNo')?CC_gid('CC_projNo').value:'',
-        nom:CC_gid('CC_projNom')?CC_gid('CC_projNom').value:'',
-        cli:CC_gid('CC_projCli')?CC_gid('CC_projCli').value:'',
-        ent:CC_gid('CC_projEnt')?CC_gid('CC_projEnt').value:''
-      };
+    setTimeout(function(){try{CC_doPDF();}catch(e){console.error('[CC] PDF',e);alert('Erreur PDF: '+e.message);}done();},50);
+  }
+  var has=typeof window.jspdf!=='undefined'&&window.jspdf.jsPDF;
+  if(has&&window.jspdf.jsPDF.API.autoTable){doIt();return;}
+  function load(src,ok,fail){var s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=fail;document.head.appendChild(s);}
+  load(CC_LIB_JSPDF_CDN,function(){
+    load(CC_LIB_AUTOT_CDN,doIt,function(){done();alert('Impossible de charger AutoTable');});
+  },function(){done();alert('Impossible de charger jsPDF');});
+}
 
-      // Page de garde
-      doc.setFillColor(26,26,26);doc.rect(0,0,W,48,'F');
-      doc.setTextColor(255,255,255);
-      doc.setFontSize(20);doc.setFont(undefined,'bold');
-      doc.text('Calculateur de cellulose souffl\u00e9e',14,18);
-      doc.setFontSize(11);doc.setFont(undefined,'normal');
-      doc.text('PROFIB CELL \u2014 Go Passif',14,26);
-      doc.setFontSize(9);
-      if(proj.nom)doc.text('Projet: '+proj.nom+(proj.no?' ('+proj.no+')':''),14,34);
-      if(proj.cli)doc.text('Client: '+proj.cli,14,39);
-      if(proj.ent)doc.text('Entrepreneur: '+proj.ent,14,44);
-      doc.setTextColor(0,0,0);
+function CC_doPDF(){
+  var jsPDF=window.jspdf?window.jspdf.jsPDF:window.jsPDF;
+  var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+  var d=CC_getExportData(),p=d.proj;
 
-      var y=56;
-      function addSection(title,rows,cols,totRow){
-        if(!rows||!rows.length)return;
-        doc.setFillColor.apply(doc,light);doc.rect(14,y-5,W-28,8,'F');
-        doc.setFontSize(11);doc.setFont(undefined,'bold');doc.setTextColor.apply(doc,primary);
-        doc.text(title,16,y);doc.setTextColor(0,0,0);y+=4;
-        if(window.jspdf&&window.jspdf.autoTable){
-          window.jspdf.autoTable(doc,{
-            startY:y,
-            head:[cols.map(function(c){return c.h;})],
-            body:rows,
-            foot:totRow?[totRow]:undefined,
-            theme:'striped',
-            headStyles:{fillColor:primary,textColor:255,fontSize:8,fontStyle:'bold'},
-            footStyles:{fillColor:light,textColor:[26,26,26],fontStyle:'bold',fontSize:9},
-            bodyStyles:{fontSize:9},
-            styles:{cellPadding:2},
-            margin:{left:14,right:14}
-          });
-          y=doc.lastAutoTable.finalY+8;
-        } else {y+=8;}
-        if(y>220){doc.addPage();y=20;}
-      }
+  // Palette grise/noire
+  var DARK=[26,26,26], DARK2=[45,45,45], SOFT=[238,238,236], INK=[26,26,26],
+      INK_SOFT=[85,90,87], LABEL=[110,114,112], RULE=[200,202,200], WHITE=[255,255,255], FOOT_BG=[248,248,247];
+  var LM=15,PW=186,PH=279,FH=20,FY=PH-FH;
+  var MM=CC_unitSystem==='mm';
+  var U_SURF=MM?'m\u00b2':'pi\u00b2', U_EP=MM?'mm':'po', U_LEN=MM?'m':'pi', U_DIM=MM?'(mm)':'(pi \u00b7 po)';
+  var dateStr=new Date().toLocaleDateString('fr-CA');
 
-      // Grenier
-      var gRows=CC_rows.grenier.map(function(r){
-        var surf=r._surf||0,qty=CC_pf(r.qty)||1;
-        return [r.label||'',qty,CC_fmt(surf,1),CC_fmtInt(r._sacs||0)];
-      });
-      addSection('Grenier / Entretoit',gRows,[{h:'Identification'},{h:'Qt\u00e9'},{h:'Surface (pi\u00b2)'},{h:'Sacs'}],
-        ['Sous-total','','',CC_fmtInt(CC_rows.grenier.reduce(function(s,r){return s+(r._sacs||0);},0))]);
+  // Affichages unité-conscients (réutilisent les helpers de l'app)
+  function pSurf(pi2){return CC_dispSurf(pi2);}
+  function pEp(po){return CC_dispEp(po);}
+  function pR(r){return CC_dispR(r);}
+  function pLen(ft){return CC_dispLenFt(ft);}
+  function pDim(pi,po,mm){if(MM){var v=CC_pf(mm);return v?String(Math.round(v)):'\u2014';}var f=CC_pf(pi)||0,i=CC_pf(po)||0;if(!f&&!i)return '\u2014';return f+(i?' \u00b7 '+i:'');}
+  function intSac(n){return CC_fmtInt(n);}
 
-      // Plafonds
-      var pRows=CC_rows.plafonds.map(function(r){
-        var surf=r._surf||0,qty=CC_pf(r.qty)||1;
-        return [r.label||'',qty,CC_fmt(surf,1),CC_fmt(r.ht||0,2)+' po',CC_fmtInt(r._sacs||0)];
-      });
-      addSection('Plafond-plancher',pRows,[{h:'Identification'},{h:'Qt\u00e9'},{h:'Surface (pi\u00b2)'},{h:'\u00c9paisseur (po)'},{h:'Sacs'}],
-        ['Sous-total','','','',CC_fmtInt(CC_rows.plafonds.reduce(function(s,r){return s+(r._sacs||0);},0))]);
+  function sf(b,pt,c){doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(pt);doc.setTextColor.apply(doc,c||INK);}
+  function fr(x,y,w,h,c){doc.setFillColor.apply(doc,c);doc.rect(x,y,w,h,'F');}
+  function tx(t,x,y,o){doc.text(String(t==null?'':t),x,y,o||{});}
+  function hl(y,c,lw){doc.setDrawColor.apply(doc,c||RULE);doc.setLineWidth(lw||0.2);doc.line(0,y,216,y);}
+  function chip(label,y){fr(LM,y,PW,5.5,SOFT);fr(LM,y,0.9,5.5,DARK);sf(true,7,DARK);tx(label.toUpperCase(),LM+2.8,y+3.8);return y+5.5+2;}
+  function kv(label,val,x,y,w){var lw=40;sf(false,6.5,LABEL);tx(label.toUpperCase(),x,y+3.5);sf(false,8,INK);tx(String(val||'\u2014'),x+lw,y+3.5);doc.setDrawColor.apply(doc,RULE);doc.setLineWidth(0.1);doc.line(x,y+5.5,x+w,y+5.5);return y+6;}
 
-      // Murs
-      var mRows=CC_rows.murs.map(function(r){
-        var surf=r._surf||0,qty=CC_pf(r.qty)||1;
-        return [r.label||'',qty,CC_fmt(surf,1),CC_fmt(CC_pf(r.ep)||5.5,2)+' po',CC_fmtInt(r._sacs||0)];
-      });
-      addSection('Murs',mRows,[{h:'Identification'},{h:'Qt\u00e9'},{h:'Surface (pi\u00b2)'},{h:'\u00c9paisseur (po)'},{h:'Sacs'}],
-        ['Sous-total','','','',CC_fmtInt(CC_rows.murs.reduce(function(s,r){return s+(r._sacs||0);},0))]);
-
-      // Résumé final
-      if(y>200){doc.addPage();y=20;}
-      doc.setFillColor(26,26,26);doc.rect(14,y-5,W-28,50,'F');
-      doc.setTextColor(255,255,255);
-      doc.setFontSize(13);doc.setFont(undefined,'bold');
-      doc.text('R\u00e9sum\u00e9 \u2014 PROFIB CELL',16,y+4);
-      doc.setFontSize(10);doc.setFont(undefined,'normal');
-      var heroSacs=CC_gid('CC_heroSacs')?CC_gid('CC_heroSacs').textContent:'—';
-      var heroPal=CC_gid('CC_heroPal')?CC_gid('CC_heroPal').textContent:'—';
-      doc.text('Sacs avec buffer '+buf+'%: '+heroSacs,16,y+14);
-      doc.text('Palettes: '+heroPal,16,y+21);
-      doc.text('Grenier: '+CC_fmtInt(CC_rows.grenier.reduce(function(s,r){return s+(r._sacs||0);},0))+' sacs',16,y+29);
-      doc.text('Plafonds: '+CC_fmtInt(CC_rows.plafonds.reduce(function(s,r){return s+(r._sacs||0);},0))+' sacs',16,y+36);
-      doc.text('Murs + Pignons: '+CC_gid('CC_sumMurs').textContent+' sacs',16,y+43);
-      doc.setTextColor(0,0,0);
-
-      doc.save('cellulose-profibcell-'+(proj.no||'projet')+'.pdf');
-    }catch(e){console.error('[CC] PDF fail',e);}
-    if(overlay)overlay.classList.remove('visible');
+  function footer(pg,tot){
+    fr(0,FY,216,FH,FOOT_BG);hl(FY,RULE,0.2);
+    sf(false,6.5,[107,116,112]);
+    tx(CC_BUREAU.nom+' \u00b7 '+CC_BUREAU.adr1,LM,FY+6.5);
+    tx(CC_BUREAU.tel+' \u00b7 '+CC_BUREAU.email,LM,FY+11.5);
+    sf(false,6.5,[107,116,112]);
+    tx('Calculateur de cellulose souffl\u00e9e \u00b7 PROFIB CELL',108,FY+6.5,{align:'center'});
+    tx('No '+(p.no||'\u2014')+' \u00b7 '+dateStr,108,FY+11.5,{align:'center'});
+    sf(true,8,LABEL);tx('Page '+pg+' / '+tot,LM+PW,FY+9,{align:'right'});
+  }
+  function header(title,pg,tot){
+    fr(0,0,216,12,WHITE);
+    sf(true,7,DARK);tx('CALCULATEUR DE CELLULOSE SOUFFL\u00c9E \u00b7 PROFIB CELL',LM+PW,4.5,{align:'right'});
+    sf(false,6,INK_SOFT);tx('Projet n\u00b0 '+(p.no||'\u2014')+' \u00b7 '+dateStr,LM+PW,9,{align:'right'});
+    hl(12,RULE,0.2);
+    fr(0,12,216,14,DARK);fr(0,12,2.5,14,DARK2);
+    sf(true,14,WHITE);tx(title,6,22.5);
+    sf(false,7,WHITE);tx('D\u00c9TAIL \u00b7 PAGE '+pg+' / '+tot,LM+PW,22.5,{align:'right'});
+    return 31;
   }
 
-  if(!window.jspdf){
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-    s.onload=function(){
-      var s2=document.createElement('script');
-      s2.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
-      s2.onload=doExport;
-      document.head.appendChild(s2);
-    };
-    document.head.appendChild(s);
-  } else { doExport(); }
+  // Regroupement par section + sous-totaux (surface, sacs)
+  var SEC_HEAD={fillColor:SOFT,textColor:DARK,fontStyle:'bold',halign:'left',fontSize:7.5};
+  var SEC_SUB={fillColor:[236,236,234],fontStyle:'bold',halign:'right'};
+  function grouped(rows,ncols,rowFn,subFn){
+    var body=[];
+    d.sections.forEach(function(sec){
+      var rr=rows.filter(function(r){return r.secId===sec.id;});
+      body.push([{content:sec.name,colSpan:ncols,styles:SEC_HEAD}]);
+      rr.forEach(function(r){body.push(rowFn(r));});
+      body.push(subFn(sec,rr));
+    });
+    return body;
+  }
+
+  var tblStyles={font:'helvetica',fontSize:8,cellPadding:{top:1.8,bottom:1.8,left:2,right:2}};
+  var tblHead={fillColor:[210,210,208],textColor:INK,fontStyle:'bold',fontSize:7,cellPadding:{top:1.8,bottom:1.8,left:2,right:2}};
+  var tblBody={fillColor:WHITE,textColor:INK,fontStyle:'normal'};
+  var tblAlt={fillColor:[245,245,244]};
+  var tblFoot={fillColor:DARK,textColor:WHITE,fontStyle:'bold',fontSize:8};
+
+  var ROWS_PER_PAGE=20;
+  // Nombre total de pages : 1 (sommaire) + 5 détails (une page par tableau, paginée au besoin)
+  function bodyCount(z){var arr=CC_rows[z]||[];if(!arr.length)return 1;return d.multiSection?d.sections.length*2+arr.length:arr.length;}
+  function pageCount(z){return Math.max(1,Math.ceil(bodyCount(z)/ROWS_PER_PAGE));}
+  var PG_TOTAL=1+pageCount('grenier')+pageCount('plafonds')+pageCount('murs')+pageCount('pig')+pageCount('ouv');
+  var pgn=0;
+
+  function paginate(cfg){
+    var chunks=[];for(var i=0;i<cfg.fullBody.length;i+=ROWS_PER_PAGE)chunks.push(cfg.fullBody.slice(i,i+ROWS_PER_PAGE));
+    if(!chunks.length)chunks=[[]];
+    chunks.forEach(function(chunk,idx){
+      doc.addPage('letter','portrait');
+      var yy=header(cfg.title,++pgn,PG_TOTAL);
+      sf(false,8,INK_SOFT);tx(cfg.intro,LM,yy);yy+=8;
+      var at=Object.assign({startY:yy,margin:{left:LM,right:LM},tableWidth:PW,head:[cfg.head],body:chunk,showFoot:'lastPage'},cfg.at);
+      if(idx===chunks.length-1)at.foot=[cfg.foot];
+      doc.autoTable(at);
+      footer(pgn,PG_TOTAL);
+    });
+  }
+
+  // ═══════════════ PAGE 1 — SOMMAIRE EXÉCUTIF ═══════════════
+  var y=LM;
+  sf(true,8,DARK);tx('GO PASSIF',LM+PW,y+6,{align:'right'});
+  sf(false,7,INK_SOFT);
+  tx(CC_BUREAU.adr1,LM+PW,y+11,{align:'right'});
+  tx(CC_BUREAU.adr2,LM+PW,y+15.5,{align:'right'});
+  tx(CC_BUREAU.tel+' \u00b7 '+CC_BUREAU.email,LM+PW,y+20,{align:'right'});
+  sf(true,13,INK);tx('PROFIB CELL',LM,y+6);
+  sf(false,8,INK_SOFT);tx('Cellulose souffl\u00e9e \u2014 fibre de bois',LM,y+11.5);
+  y+=26;
+
+  sf(true,13,INK);tx('Calculateur de cellulose souffl\u00e9e \u2014 Sommaire du projet',LM,y);
+  sf(false,8,INK_SOFT);tx(dateStr,LM+PW,y,{align:'right'});
+  doc.setDrawColor.apply(doc,DARK);doc.setLineWidth(0.4);doc.line(LM,y+1.5,LM+PW,y+1.5);
+  y+=6;
+
+  y=chip('Informations du projet',y);
+  var adF=[p.adresse,p.ville,p.prov,p.cp].filter(Boolean).join(', ');
+  var y1=y;
+  y=kv('No de projet',p.no,LM,y1,PW/2);kv('Nom du projet',p.nom,LM+PW/2,y1,PW/2);
+  var y2=y;
+  y=kv('Client',p.cli,LM,y2,PW/2);kv('Entrepreneur',p.ent,LM+PW/2,y2,PW/2);
+  y=kv('Adresse',adF,LM,y,PW);
+  if(p.notes&&p.notes.trim()){sf(false,6.5,LABEL);tx('NOTES',LM,y+3.5);var nl=doc.splitTextToSize(p.notes,PW-42);sf(false,8,INK);doc.text(nl,LM+40,y+3.5);y+=nl.length*4.5+2;}
+  y+=3;
+
+  // Valeurs clés (cartes)
+  y=chip('Valeurs cl\u00e9s',y);
+  var cards=[
+    {l:'Surface totale',v:pSurf(d.surfTot)+' '+U_SURF},
+    {l:'Sacs nets',v:intSac(d.netTotal)},
+    {l:'Sacs avec buffer '+d.buf+'%',v:String(d.bufTotal)},
+    {l:'Palettes (42/pal.)',v:String(d.palTotal)}
+  ];
+  var cw=(PW-6)/4;
+  cards.forEach(function(cf,i){
+    var cx=LM+i*(cw+2);
+    doc.setFillColor(251,251,251);doc.setDrawColor(201,201,201);doc.setLineWidth(0.2);doc.rect(cx,y,cw,13,'FD');
+    sf(false,6.3,LABEL);
+    var ll=doc.splitTextToSize(cf.l.toUpperCase(),cw-4);doc.text(ll,cx+2.5,y+4);
+    sf(true,12,INK);tx(cf.v,cx+2.5,y+11);
+  });
+  y+=16;
+
+  // Détail par zone (surface + sacs)
+  y=chip('D\u00e9tail par zone',y);
+  var Z=d.zones;
+  var zoneBody=[
+    ['Grenier / entretoit',pSurf(Z.grenier.surf),intSac(Z.grenier.sacs)],
+    ['Plafond-plancher',pSurf(Z.plafonds.surf),intSac(Z.plafonds.sacs)],
+    ['Murs rectangulaires',pSurf(Z.murs.surf),intSac(Z.murs.sacs)],
+    ['Murs en pignon',pSurf(Z.pig.surf),intSac(Z.pig.sacs)],
+    ['(Ouvertures retranch\u00e9es)','('+pSurf(Z.ouv.surf)+')','-'+intSac(Z.ouv.sacs)]
+  ];
+  doc.autoTable({
+    startY:y,margin:{left:LM,right:LM},tableWidth:PW,
+    head:[['Zone','Surface ('+U_SURF+')','Sacs']],
+    body:zoneBody,
+    styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,
+    columnStyles:{0:{cellWidth:PW*0.54},1:{cellWidth:PW*0.26,halign:'right'},2:{cellWidth:PW*0.20,halign:'right'}},
+    didParseCell:function(data){if(data.column.index>=1)data.cell.styles.halign='right';}
+  });
+  var aB=doc.lastAutoTable.finalY;
+  // Bande sacs nets
+  fr(LM,aB,PW,7,SOFT);sf(true,8,DARK);
+  tx('Sacs nets (sans buffer)',LM+2,aB+4.8);tx(intSac(d.netTotal)+' sacs',LM+PW-2,aB+4.8,{align:'right'});
+  // Bande finale (avec buffer)
+  fr(LM,aB+7,PW,8,DARK);sf(true,9,WHITE);
+  tx('Sacs requis (avec buffer '+d.buf+'%)',LM+2,aB+12);tx(d.bufTotal+' sacs',LM+PW-2,aB+12,{align:'right'});
+  y=aB+7+8+3;
+
+  // Matériaux requis (PROFIB CELL)
+  y=chip('Mat\u00e9riaux requis',y);
+  var SAC_KG=CC_SAC_KG, KG_LB=CC_KG_TO_LBS;
+  var masseKg=d.bufTotal*SAC_KG;
+  doc.autoTable({
+    startY:y,margin:{left:LM,right:LM},tableWidth:PW,
+    head:[['Produit','Sacs','Masse (kg)','Masse (lbs)','Palettes','kg/sac','sacs/pal.']],
+    body:[['PROFIB CELL',String(d.bufTotal),CC_fmt(masseKg,0),CC_fmt(masseKg*KG_LB,0),String(d.palTotal),CC_fmt(SAC_KG,1),'42']],
+    foot:[['TOTAL',String(d.bufTotal),CC_fmt(masseKg,0),CC_fmt(masseKg*KG_LB,0),String(d.palTotal),'','']],
+    showFoot:'lastPage',
+    styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,footStyles:tblFoot,
+    columnStyles:{0:{cellWidth:PW*0.24},1:{cellWidth:PW*0.11,halign:'right'},2:{cellWidth:PW*0.15,halign:'right'},3:{cellWidth:PW*0.15,halign:'right'},4:{cellWidth:PW*0.13,halign:'right'},5:{cellWidth:PW*0.11,halign:'right'},6:{cellWidth:PW*0.11,halign:'right'}},
+    didParseCell:function(data){if(data.column.index>=1)data.cell.styles.halign='right';}
+  });
+  var aM=doc.lastAutoTable.finalY;
+  sf(false,7,INK_SOFT);
+  tx('\u00b7 Sac PROFIB CELL = '+CC_fmt(SAC_KG,1)+' kg ('+CC_fmt(SAC_KG*KG_LB,0)+' lbs) \u00b7 42 sacs par palette.',LM,aM+5);
+  tx('\u00b7 Les sacs sont arrondis \u00e0 l\u2019entier sup\u00e9rieur. Le total avec buffer est la r\u00e9f\u00e9rence pour la commande.',LM,aM+9);
+  footer(++pgn,PG_TOTAL);
+
+  // ═══════════════ PAGES DÉTAIL — une par tableau ═══════════════
+  function subSurfSacs(sec,rr,labelCols){
+    var ss=0,sk=0;rr.forEach(function(r){ss+=r._surf||0;sk+=r._sacs||0;});
+    var c=[{content:'Sous-total \u2014 '+sec.name,colSpan:labelCols,styles:Object.assign({halign:'left'},SEC_SUB)}];
+    return {c:c,ss:ss,sk:sk};
+  }
+
+  // GRENIER : Id, Qté, Surface, Valeur R, Épaisseur, Sacs
+  var headG=['Identification','Qt\u00e9','Surface ('+U_SURF+')','Valeur R'+(MM?' (RSI)':''),'\u00c9pais. ('+U_EP+')','Sacs'];
+  var gRowFn=function(r){return [r.label||'\u2014',CC_pf(r.qty)||1,pSurf(r._surf||0),pR(r._rCalc||0),pEp(r._epCalc||0),intSac(r._sacs||0)];};
+  var gSubFn=function(sec,rr){var o=subSurfSacs(sec,rr,2);return o.c.concat([{content:o.ss?pSurf(o.ss):'\u2014',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:intSac(o.sk),styles:SEC_SUB}]);};
+  var gBody=CC_rows.grenier.length?(d.multiSection?grouped(CC_rows.grenier,6,gRowFn,gSubFn):CC_rows.grenier.map(gRowFn)):[['Aucune zone grenier saisie','','','','','']];
+  paginate({title:'Grenier / entretoit',intro:'Surface, valeur R, \u00e9paisseur et sacs par zone de grenier.',
+    head:headG,fullBody:gBody,foot:['Total','',pSurf(Z.grenier.surf),'','',intSac(Z.grenier.sacs)],
+    at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
+      columnStyles:{0:{cellWidth:PW*0.34,halign:'left'}},
+      didParseCell:function(data){if(data.section==='body'&&data.row.raw.length===1)return;if(data.column.index>=1)data.cell.styles.halign='right';}}});
+
+  // PLAFONDS : Id, Qté, Surface, Valeur R, Épaisseur (poutrelles), Sacs
+  var headP=['Identification','Qt\u00e9','Surface ('+U_SURF+')','Valeur R'+(MM?' (RSI)':''),'Haut. poutr. ('+U_EP+')','Sacs'];
+  var pRowFn=function(r){return [r.label||'\u2014',CC_pf(r.qty)||1,pSurf(r._surf||0),pR(r._rCalc||0),pEp(r._epCalc||0),intSac(r._sacs||0)];};
+  var pBody=CC_rows.plafonds.length?(d.multiSection?grouped(CC_rows.plafonds,6,pRowFn,gSubFn):CC_rows.plafonds.map(pRowFn)):[['Aucun plafond-plancher saisi','','','','','']];
+  paginate({title:'Plafond-plancher',intro:'Surface, valeur R, hauteur de poutrelles et sacs par zone.',
+    head:headP,fullBody:pBody,foot:['Total','',pSurf(Z.plafonds.surf),'','',intSac(Z.plafonds.sacs)],
+    at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
+      columnStyles:{0:{cellWidth:PW*0.34,halign:'left'}},
+      didParseCell:function(data){if(data.section==='body'&&data.row.raw.length===1)return;if(data.column.index>=1)data.cell.styles.halign='right';}}});
+
+  // MURS : Id, Qté, Long., Haut., Surface, R, Épaisseur, Sacs
+  var headM=['Identification','Qt\u00e9','Long. '+U_DIM,'Haut. '+U_DIM,'Surf. ('+U_SURF+')','R'+(MM?' (RSI)':''),'\u00c9p. ('+U_EP+')','Sacs'];
+  var mRowFn=function(r){return [r.label||'\u2014',CC_pf(r.qty)||1,pDim(r.l_pi,r.l_po,r.l_mm),pDim(r.h_pi,r.h_po,r.h_mm),pSurf(r._surf||0),pR(r._rCalc||0),pEp(r._epCalc||0),intSac(r._sacs||0)];};
+  var mSubFn=function(sec,rr){var o=subSurfSacs(sec,rr,4);return o.c.concat([{content:o.ss?pSurf(o.ss):'\u2014',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:intSac(o.sk),styles:SEC_SUB}]);};
+  var mBody=CC_rows.murs.length?(d.multiSection?grouped(CC_rows.murs,8,mRowFn,mSubFn):CC_rows.murs.map(mRowFn)):[['Aucun mur rectangulaire saisi','','','','','','','']];
+  paginate({title:'Murs rectangulaires',intro:'Dimensions, surface, valeur R, \u00e9paisseur et sacs par mur.',
+    head:headM,fullBody:mBody,foot:['Total','','','',pSurf(Z.murs.surf),'','',intSac(Z.murs.sacs)],
+    at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
+      columnStyles:{0:{cellWidth:PW*0.20,halign:'left'}},
+      didParseCell:function(data){if(data.section==='body'&&data.row.raw.length===1)return;if(data.column.index>=1)data.cell.styles.halign='right';}}});
+
+  // PIGNONS : Id, Qté, Type, Surface, Seg. pente, Épaisseur, Sacs
+  var headPg=['Identification','Qt\u00e9','Type','Surf. ('+U_SURF+')','Seg. pente ('+U_LEN+')','\u00c9p. ('+U_EP+')','Sacs'];
+  var typeLbl=function(t){return t==='centre'?'Centr\u00e9':t==='decentre'?'D\u00e9centr\u00e9':'Monopente';};
+  var pgRowFn=function(r){return [r.label||'\u2014',CC_pf(r.qty)||1,typeLbl(r.type),pSurf(r._surf||0),pLen(r._seg||0),pEp(r._epCalc||0),intSac(r._sacs||0)];};
+  var pgSubFn=function(sec,rr){var ss=0,sk=0;rr.forEach(function(r){ss+=r._surf||0;sk+=r._sacs||0;});return [{content:'Sous-total \u2014 '+sec.name,colSpan:3,styles:Object.assign({halign:'left'},SEC_SUB)},{content:ss?pSurf(ss):'\u2014',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:intSac(sk),styles:SEC_SUB}];};
+  var pgBody=CC_rows.pig.length?(d.multiSection?grouped(CC_rows.pig,7,pgRowFn,pgSubFn):CC_rows.pig.map(pgRowFn)):[['Aucun pignon saisi','','','','','','']];
+  paginate({title:'Murs en pignon',intro:'Aires triangulaires (monopente, centr\u00e9, d\u00e9centr\u00e9), segment de pente, \u00e9paisseur et sacs.',
+    head:headPg,fullBody:pgBody,foot:['Total','','',pSurf(Z.pig.surf),'','',intSac(Z.pig.sacs)],
+    at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
+      columnStyles:{0:{cellWidth:PW*0.22,halign:'left'},2:{cellWidth:PW*0.16,halign:'left'}},
+      didParseCell:function(data){if(data.section==='body'&&data.row.raw.length===1)return;if(data.column.index===1||data.column.index>=3)data.cell.styles.halign='right';}}});
+
+  // OUVERTURES : Code, Emplacement, Qté, Largeur, Hauteur, Jeu, Surface, Sacs retranchés
+  var headO=['Code','Emplacement','Qt\u00e9','Larg. '+U_DIM,'Haut. '+U_DIM,'Jeu ('+U_EP+')','Surf. ('+U_SURF+')','Sacs retr.'];
+  var oRowFn=function(r){return [r.code||'\u2014',r.place||'\u2014',CC_pf(r.qty)||1,pDim(r.l_pi,r.l_po,r.l_mm),pDim(r.h_pi,r.h_po,r.h_mm),(MM?CC_fmt((CC_pf(r.jeu)||0.5)*25.4,0):CC_fmt(CC_pf(r.jeu)||0.5,2)),pSurf(r._surf||0),(r._surf>0?'-'+intSac(r._sacs||0):'0')];};
+  var oSubFn=function(sec,rr){var ss=0,sk=0;rr.forEach(function(r){ss+=r._surf||0;sk+=r._sacs||0;});return [{content:'Sous-total \u2014 '+sec.name,colSpan:6,styles:Object.assign({halign:'left'},SEC_SUB)},{content:ss?pSurf(ss):'\u2014',styles:SEC_SUB},{content:'-'+intSac(sk),styles:SEC_SUB}];};
+  var oBody=CC_rows.ouv.length?(d.multiSection?grouped(CC_rows.ouv,8,oRowFn,oSubFn):CC_rows.ouv.map(oRowFn)):[['Aucune ouverture saisie','','','','','','','']];
+  paginate({title:'Ouvertures \u00e0 retrancher',intro:'Surface des ouvertures (jeu inclus) retranch\u00e9e des murs.',
+    head:headO,fullBody:oBody,foot:['Total','','','','','','('+pSurf(Z.ouv.surf)+')','-'+intSac(Z.ouv.sacs)],
+    at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
+      columnStyles:{0:{cellWidth:PW*0.13,halign:'left'},1:{cellWidth:PW*0.17,halign:'left'}},
+      didParseCell:function(data){if(data.section==='body'&&data.row.raw.length===1)return;if(data.column.index>=2)data.cell.styles.halign='right';}}});
+
+  doc.save('cellulose-profibcell-'+(p.no||'projet')+'.pdf');
 }
 
 // ─────────────────────────────────────────────────────────
