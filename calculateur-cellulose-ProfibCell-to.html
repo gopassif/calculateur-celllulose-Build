@@ -1,0 +1,679 @@
+<div class="page">
+<header class="page-header">
+  <div>
+    <div class="page-title">Calculateur de cellulose souffl&eacute;e</div>
+    <div class="page-subtitle">PROFIB CELL &middot; estimation des mat&eacute;riaux selon g&eacute;om&eacute;trie et zone</div>
+  </div>
+</header>
+
+<div class="layout">
+<div class="inputs-col">
+
+  <div class="inputs-nav">
+    <div class="inputs-nav-inner">
+
+      <div class="nav-row nav-row-actions">
+        <button class="nav-btn" data-target="sec-fichier" onclick="CC_navTo('sec-fichier')" title="Sauvegarde et exports JSON">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+        </button>
+        <button class="nav-btn" onclick="CC_exportPDF()">PDF</button>
+        <button class="nav-btn" onclick="CC_exportJSON()">JSON</button>
+        <div class="gp-zoom-group">
+          <button class="gp-zoom-btn" onclick="CC_zoomStep(-1)" title="R&eacute;duire" tabindex="-1">A&minus;</button>
+          <span class="gp-zoom-label" id="CC_zoomLabel">100%</span>
+          <button class="gp-zoom-btn" onclick="CC_zoomStep(1)" title="Agrandir" tabindex="-1">A+</button>
+        </div>
+        <div class="seg sm nav-unit-seg" id="CC_unitSeg" title="Unit&eacute;s">
+          <button class="active" onclick="CC_setUnitSystem('imp',this)">pi + po</button>
+          <button onclick="CC_setUnitSystem('mm',this)">mm</button>
+        </div>
+      </div>
+
+      <div class="nav-row nav-row-sections">
+        <button class="nav-btn active" data-target="sec-projet" onclick="CC_navTo('sec-projet')">
+          <span class="nav-badge">1</span> Projet
+        </button>
+        <button class="nav-btn" data-target="sec-config" onclick="CC_navTo('sec-config')">
+          <span class="nav-badge">2</span> Config
+        </button>
+        <button class="nav-btn" data-target="sec-grenier" onclick="CC_navTo('sec-grenier')">
+          <span class="nav-badge">3</span> Grenier
+        </button>
+        <button class="nav-btn" data-target="sec-plafond" onclick="CC_navTo('sec-plafond')">
+          <span class="nav-badge">4</span> Plafond
+        </button>
+        <button class="nav-btn" data-target="sec-murs" onclick="CC_navTo('sec-murs')">
+          <span class="nav-badge">5</span> Murs
+        </button>
+        <button class="nav-btn" data-target="sec-pignons" onclick="CC_navTo('sec-pignons')">
+          <span class="nav-badge">6</span> Pignons
+        </button>
+        <button class="nav-btn" data-target="sec-ouvertures" onclick="CC_navTo('sec-ouvertures')">
+          <span class="nav-badge">7</span> Ouvertures
+        </button>
+        <button class="nav-btn" data-target="sec-buffer" onclick="CC_navTo('sec-buffer')">
+          <span class="nav-badge">8</span> Buffer
+        </button>
+        <button class="nav-btn" data-target="sec-materiaux" onclick="CC_navTo('sec-materiaux')">
+          <span class="nav-badge">9</span> Mat&eacute;riaux
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="sec-fichier" class="save-bar">
+    <div class="save-bar-label" id="CC_saveLabel">Aucune sauvegarde locale</div>
+    <div class="save-bar-actions">
+      <button class="save-btn" onclick="GPM_open()" title="Prendre les mesures directement sur un plan PDF ou une image">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 9v6M21 9v6M8 10v4M13 10v4M18 10v4"></path></svg>
+        Mesure sur plan
+      </button>
+      <button class="save-btn primary" onclick="CC_saveLocal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+        Sauvegarder
+      </button>
+      <label class="save-btn" style="cursor:pointer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+        Importer
+        <input type="file" id="CC_fileInput" accept=".json" style="display:none" onchange="CC_importJSON(this)">
+      </label>
+      <button class="save-btn" onclick="CC_exportJSON()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Exporter
+      </button>
+      <button class="save-btn" onclick="CC_exportPDF()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+        PDF
+      </button>
+      <button class="save-btn danger" onclick="CC_newProject()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Nouveau
+      </button>
+    </div>
+  </div>
+
+  <div class="save-status" id="CC_saveStatus"></div>
+
+  <!-- ═══ PROJET ═══ -->
+  <div id="sec-projet" class="section-label">Informations sur le projet</div>
+  <div class="card">
+    <div class="sub-head" style="margin-bottom:16px">
+      <span class="sub-num">1</span>
+      <div>
+        <div class="sub-title">Informations sur le projet</div>
+        <div class="sub-hint">Remplissez les informations du projet pour les retrouver dans les exports.</div>
+      </div>
+    </div>
+    <div class="project-grid">
+      <div class="project-field">
+        <div class="field-label">No de projet</div>
+        <input class="project-input" type="text" id="CC_projNo" oninput="CC_recalc()" placeholder="ex: 2025-042">
+      </div>
+      <div class="project-field">
+        <div class="field-label">Nom du projet</div>
+        <input class="project-input" type="text" id="CC_projNom" oninput="CC_recalc()" placeholder="ex: R&eacute;sidence Tremblay">
+      </div>
+      <div class="project-field">
+        <div class="field-label">Client</div>
+        <input class="project-input" type="text" id="CC_projCli" oninput="CC_recalc()" placeholder="Nom du client">
+      </div>
+      <div class="project-field">
+        <div class="field-label">Entrepreneur</div>
+        <input class="project-input" type="text" id="CC_projEnt" oninput="CC_recalc()" placeholder="Nom de l'entrepreneur">
+      </div>
+      <div class="project-field full">
+        <div class="field-label">Adresse du chantier</div>
+        <input class="project-input" type="text" id="CC_projAdr" oninput="CC_recalc()" placeholder="Num&eacute;ro et rue">
+      </div>
+      <div class="project-field">
+        <div class="field-label">Ville</div>
+        <input class="project-input" type="text" id="CC_projVille" oninput="CC_recalc()" placeholder="Ville">
+      </div>
+      <div class="project-field">
+        <div class="field-label">Province</div>
+        <input class="project-input" type="text" id="CC_projProv" oninput="CC_recalc()" placeholder="QC">
+      </div>
+      <div class="project-field">
+        <div class="field-label">Code postal</div>
+        <input class="project-input" type="text" id="CC_projCP" oninput="CC_recalc()" placeholder="J0X 0X0">
+      </div>
+      <div class="project-field full">
+        <div class="field-label">Notes g&eacute;n&eacute;rales</div>
+        <textarea class="project-input" id="CC_projNotes" oninput="CC_recalc()" placeholder="Notes, observations, particularit&eacute;s du projet&hellip;"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ CONFIGURATION ═══ -->
+  <div id="sec-config" class="section-label">Configuration</div>
+  <div class="card">
+    <div class="sub-head" style="margin-bottom:16px">
+      <span class="sub-num">2</span>
+      <div>
+        <div class="sub-title">Param&egrave;tres par zone</div>
+        <div class="sub-hint">Ces valeurs servent de d&eacute;faut pour chaque zone. Elles peuvent &ecirc;tre modifi&eacute;es ligne par ligne dans chaque section.</div>
+      </div>
+    </div>
+    <div class="config-grid">
+      <!-- Grenier -->
+      <div class="config-zone-card">
+        <div class="config-zone-title">Grenier / entretoit</div>
+        <div class="cfg-field">
+          <div class="field-label">&Eacute;paisseur <span class="ep-unit">(po)</span></div>
+          <input class="field-input" type="text" id="CC_cfgGrenierEp" value="17" oninput="CC_onCfgInput('grenier','epTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgGrenierEpSlider" min="4" max="30" step="0.25" value="17" oninput="CC_onCfgInput('grenier','epSld')">
+        </div>
+        <div class="cfg-field">
+          <div class="field-label">Valeur R <span class="r-unit">(R)</span></div>
+          <input class="field-input" type="text" id="CC_cfgGrenierR" value="60" oninput="CC_onCfgInput('grenier','rTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgGrenierRSlider" min="12" max="108" step="1" value="60" oninput="CC_onCfgInput('grenier','rSld')">
+        </div>
+        <div class="cfg-field">
+          <div class="field-label">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span> &mdash; 1&ndash;2</div>
+          <input class="field-input" type="text" id="CC_cfgGrenierDens" value="1.52" oninput="CC_onCfgInput('grenier','densTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgGrenierDensSlider" min="1" max="2" step="0.01" value="1.52" oninput="CC_onCfgInput('grenier','densSld')">
+        </div>
+      </div>
+      <!-- Murs -->
+      <div class="config-zone-card">
+        <div class="config-zone-title">Murs haute densit&eacute;</div>
+        <div class="cfg-field">
+          <div class="field-label">&Eacute;paisseur murs <span class="ep-unit">(po)</span></div>
+          <input class="field-input" type="text" id="CC_cfgMursEp" value="5.5" oninput="CC_onCfgInput('murs','epTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgMursEpSlider" min="1" max="10" step="0.25" value="5.5" oninput="CC_onCfgInput('murs','epSld')">
+        </div>
+        <div class="cfg-field">
+          <div class="field-label">Valeur R <span class="r-unit">(R)</span></div>
+          <input class="field-input" type="text" id="CC_cfgMursR" value="19" oninput="CC_onCfgInput('murs','rTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgMursRSlider" min="3" max="35" step="1" value="19" oninput="CC_onCfgInput('murs','rSld')">
+        </div>
+        <div class="cfg-field">
+          <div class="field-label">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span> &mdash; 3&ndash;5</div>
+          <input class="field-input" type="text" id="CC_cfgMursDens" value="4.0" oninput="CC_onCfgInput('murs','densTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgMursDensSlider" min="3" max="5" step="0.1" value="4" oninput="CC_onCfgInput('murs','densSld')">
+        </div>
+      </div>
+      <!-- Plafond-plancher -->
+      <div class="config-zone-card">
+        <div class="config-zone-title">Plafond-plancher (poutrelles)</div>
+        <div class="cfg-field">
+          <div class="field-label">&Eacute;paisseur <span class="ep-unit">(po)</span></div>
+          <input class="field-input" type="text" id="CC_cfgPlafondsEp" value="11.875" oninput="CC_onCfgInput('plafonds','epTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgPlafondsEpSlider" min="3.5" max="20.25" step="0.125" value="11.875" oninput="CC_onCfgInput('plafonds','epSld')">
+          <div style="font-size:10px;color:var(--ink-4);margin-top:2px">11 7/8 po par d&eacute;faut</div>
+        </div>
+        <div class="cfg-field">
+          <div class="field-label">Valeur R <span class="r-unit">(R)</span></div>
+          <input class="field-input" type="text" id="CC_cfgPlafondsR" value="42" oninput="CC_onCfgInput('plafonds','rTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgPlafondsRSlider" min="13" max="71" step="1" value="42" oninput="CC_onCfgInput('plafonds','rSld')">
+        </div>
+        <div class="cfg-field">
+          <div class="field-label">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span> &mdash; 1&ndash;3</div>
+          <input class="field-input" type="text" id="CC_cfgPlafondsDens" value="2.0" oninput="CC_onCfgInput('plafonds','densTxt')">
+          <input type="range" class="cfg-slider" id="CC_cfgPlafondsDensSlider" min="1" max="3" step="0.01" value="2" oninput="CC_onCfgInput('plafonds','densSld')">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTIONS globales ═══ -->
+  <div class="card" id="CC_sectionsCard">
+    <div class="card-title">
+      <div class="ct-left"><span>Sections de niveaux</span></div>
+    </div>
+    <div class="info-note">Regroupez vos rang&eacute;es par section (ex. RDC, &Eacute;tage, Garage). Toutes les zones (grenier, plafond, murs) partagent les m&ecirc;mes sections. Un r&eacute;capitulatif par section appara&icirc;t plus bas d&egrave;s qu'il y a deux sections ou plus.</div>
+    <div id="CC_sectionsBar" class="sections-bar" style="margin-top:12px"></div>
+  </div>
+
+  <!-- ═══ GRENIER / ENTRETOIT ═══ -->
+  <div id="sec-grenier" class="section-label">Grenier / entretoit</div>
+  <div class="card">
+    <div class="card-title">
+      <div class="ct-left"><span class="step-badge">3</span><span>Grenier / Entretoit</span></div>
+    </div>
+    <!-- En-tête de zone: R, épaisseur, densité -->
+    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px;align-items:flex-start">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Valeur R</label>
+        <input type="text" id="CC_grenierR" class="jeu-global-input zone-hdr-input" value="60" oninput="CC_onZoneHeaderChange('grenier')">
+        <input type="range" class="cfg-slider" id="CC_grenierRSlider" min="12" max="108" step="1" value="60" oninput="CC_onZoneSlider('grenier','r')">
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">&Eacute;paisseur <span id="CC_grenierEpHdrUnit">(po)</span></label>
+        <input type="text" id="CC_grenierEp" class="jeu-global-input zone-hdr-input" value="" oninput="CC_onZoneHeaderEpChange('grenier')">
+        <input type="range" class="cfg-slider" id="CC_grenierEpSlider" min="4" max="30" step="0.25" value="17" oninput="CC_onZoneSlider('grenier','ep')">
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span></label>
+        <input type="text" id="CC_grenierDens" class="jeu-global-input zone-hdr-input" value="1.52" oninput="CC_onZoneHeaderChange('grenier')">
+        <input type="range" class="cfg-slider" id="CC_grenierDensSlider" min="1" max="2" step="0.01" value="1.52" oninput="CC_onZoneDensSlider('grenier')">
+      </div>
+      <button type="button" class="btn-jeu-apply" style="margin-top:16px" onclick="CC_applyZoneHeaderAll('grenier')">Appliquer &agrave; toutes</button>
+    </div>
+    <div class="col-toggles" id="CC_cols_grenier" style="margin-top:14px">
+      <span class="ct-lbl">Colonnes</span>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('grenier','surf',this.checked)"> Surface</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('grenier','r',this.checked)"> Valeur R</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('grenier','ep',this.checked)"> &Eacute;paisseur</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('grenier','sacs',this.checked)"> Sacs</label>
+    </div>
+    <div class="table-wrap" style="margin-top:10px">
+      <table id="CC_tbl_grenier">
+        <thead><tr>
+          <th style="width:130px">Identification <span class="th-unit">texte</span></th><th style="width:40px">Qt&eacute; <span class="th-unit">nb</span></th>
+          <th>Longueur <span class="th-unit" id="CC_thu_grenier_l">(pi &middot; po)</span></th>
+          <th>Largeur <span class="th-unit" id="CC_thu_grenier_w">(pi &middot; po)</span></th>
+          <th class="col-surf">Surface <span class="th-unit" id="CC_thu_grenier_surf">(pi&sup2;)</span></th>
+          <th class="col-r">Valeur R <span class="th-unit" id="CC_thu_grenier_r">(R)</span></th>
+          
+          <th class="col-ep">&Eacute;pais. <span class="th-unit" id="CC_thu_grenier_ep">(po)</span></th>
+          <th class="col-sacs">Sacs <span class="th-unit">nb</span></th>
+          <th style="width:54px"></th>
+        </tr></thead>
+        <tbody id="CC_tbody_grenier"></tbody>
+        <tfoot><tr class="subtotal-row">
+          <td colspan="4">Sous-total grenier</td>
+          <td class="col-surf" id="CC_stSurfGrenier">&mdash;</td>
+          <td class="col-r"></td>
+          <td class="col-ep"></td>
+          <td class="col-sacs" id="CC_stSacsGrenier">&mdash;</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="round-note">Les valeurs par ligne sont arrondi&eacute;es &agrave; l'unit&eacute; pour l'affichage. Les sous-totaux et le PDF utilisent les valeurs exactes.</div>
+    
+  </div>
+
+  <!-- ═══ PLAFOND-PLANCHER ═══ -->
+  <div id="sec-plafond" class="section-label">Plafond-plancher</div>
+  <div class="card">
+    <div class="card-title">
+      <div class="ct-left"><span class="step-badge">4</span><span>Plafond-plancher (poutrelles)</span></div>
+    </div>
+    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px;align-items:flex-start">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Hauteur poutrelles <span id="CC_plafondHtHdrUnit">(po)</span></label>
+        <input type="text" id="CC_plafondHt" class="jeu-global-input zone-hdr-input" value="11.875" oninput="CC_onZoneHeaderChange('plafonds')">
+        <input type="range" class="cfg-slider" id="CC_plafondEpSlider" min="3.5" max="20.25" step="0.125" value="11.875" oninput="CC_onZoneSlider('plafonds','ep')">
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">R calcul&eacute;</label>
+        <input type="text" id="CC_plafondR" class="jeu-global-input zone-hdr-input computed" style="background:var(--surface-3);color:var(--ink-3)" readonly tabindex="-1">
+        <input type="range" class="cfg-slider" id="CC_plafondRSlider" min="13" max="71" step="1" value="42" oninput="CC_onZoneSlider('plafonds','r')">
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span></label>
+        <input type="text" id="CC_plafondDens" class="jeu-global-input zone-hdr-input" value="2.0" oninput="CC_onZoneHeaderChange('plafonds')">
+        <input type="range" class="cfg-slider" id="CC_plafondDensSlider" min="1" max="3" step="0.01" value="2" oninput="CC_onZoneDensSlider('plafonds')">
+      </div>
+      <button type="button" class="btn-jeu-apply" style="margin-top:16px" onclick="CC_applyZoneHeaderAll('plafonds')">Appliquer &agrave; toutes</button>
+    </div>
+    <div class="col-toggles" style="margin-top:14px">
+      <span class="ct-lbl">Colonnes</span>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('plafonds','surf',this.checked)"> Surface</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('plafonds','r',this.checked)"> Valeur R</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('plafonds','ep',this.checked)"> &Eacute;paisseur</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('plafonds','sacs',this.checked)"> Sacs</label>
+    </div>
+    <div class="table-wrap" style="margin-top:10px">
+      <table id="CC_tbl_plafonds">
+        <thead><tr>
+          <th style="width:130px">Identification <span class="th-unit">texte</span></th><th style="width:40px">Qt&eacute; <span class="th-unit">nb</span></th>
+          <th>Longueur <span class="th-unit" id="CC_thu_plafonds_l">(pi &middot; po)</span></th>
+          <th>Largeur <span class="th-unit" id="CC_thu_plafonds_w">(pi &middot; po)</span></th>
+          <th class="col-surf">Surface <span class="th-unit" id="CC_thu_plafonds_surf">(pi&sup2;)</span></th>
+          <th class="col-r">Valeur R <span class="th-unit" id="CC_thu_plafonds_r">(R)</span></th>
+          
+          <th class="col-ep">&Eacute;pais. <span class="th-unit" id="CC_thu_plafonds_ep">(po)</span></th>
+          <th class="col-sacs">Sacs <span class="th-unit">nb</span></th>
+          <th style="width:54px"></th>
+        </tr></thead>
+        <tbody id="CC_tbody_plafonds"></tbody>
+        <tfoot><tr class="subtotal-row">
+          <td colspan="4">Sous-total plafonds</td>
+          <td class="col-surf" id="CC_stSurfPlafonds">&mdash;</td>
+          <td class="col-r"></td>
+          <td class="col-ep"></td>
+          <td class="col-sacs" id="CC_stSacsPlafonds">&mdash;</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="round-note">Les valeurs par ligne sont arrondi&eacute;es &agrave; l'unit&eacute; pour l'affichage.</div>
+    
+  </div>
+
+  <!-- ═══ MURS ═══ -->
+  <div id="sec-murs" class="section-label">Murs</div>
+  <div class="card">
+    <div class="card-title">
+      <div class="ct-left"><span class="step-badge">5</span><span>Murs - Portions rectangulaires</span></div>
+    </div>
+    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px;align-items:flex-start">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Hauteur murs <span id="CC_hauteurGlobalUnit">(pi &middot; po)</span></label>
+        <span class="dim-imp" id="CC_hauteurGlobalImp" style="display:inline-flex">
+          <span class="dim-pair"><input type="text" id="CC_hauteurGlobal_pi" class="tbl-input dim-in" size="3" value="8" oninput="CC_onHauteurGlobalInput()"> <span class="dim-suf">pi</span></span>
+          <span class="dim-pair"><input type="text" id="CC_hauteurGlobal_po" class="tbl-input dim-in" size="3" oninput="CC_onHauteurGlobalInput()"> <span class="dim-suf">po</span></span>
+        </span>
+        <span class="dim-mm" id="CC_hauteurGlobalMm" style="display:none"><input type="text" id="CC_hauteurGlobal_mm" class="tbl-input dim-in" size="4" oninput="CC_onHauteurGlobalInput()"> <span class="dim-suf">mm</span></span>
+        <button type="button" class="btn-jeu-apply" style="margin-top:2px" onclick="CC_applyHauteurAll()">Appliquer hauteur</button>
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">&Eacute;paisseur murs <span id="CC_mursEpUnit">(po)</span></label>
+        <input type="text" id="CC_mursEp" class="jeu-global-input zone-hdr-input" value="5.5" oninput="CC_onMursEpInput()">
+        <input type="range" class="cfg-slider" id="CC_mursEpSlider" min="1" max="10" step="0.25" value="5.5" oninput="CC_onZoneSlider('murs','ep')">
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Valeur R</label>
+        <input type="text" id="CC_mursRHdr" class="jeu-global-input zone-hdr-input computed" style="background:var(--surface-3);color:var(--ink-3)" readonly tabindex="-1">
+        <input type="range" class="cfg-slider" id="CC_mursRSlider" min="3" max="35" step="1" value="19" oninput="CC_onZoneSlider('murs','r')">
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span></label>
+        <input type="text" id="CC_mursDens" class="jeu-global-input zone-hdr-input" value="4.0" oninput="CC_onZoneHeaderChange('murs')">
+        <input type="range" class="cfg-slider" id="CC_mursDensSlider" min="3" max="5" step="0.1" value="4" oninput="CC_onZoneDensSlider('murs')">
+        <button type="button" class="btn-jeu-apply" style="margin-top:2px" onclick="CC_applyEpMursAll()">Appliquer &eacute;p.</button>
+      </div>
+    </div>
+    <div class="col-toggles" style="margin-top:14px">
+      <span class="ct-lbl">Colonnes</span>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('murs','surf',this.checked)"> Surface</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('murs','r',this.checked)"> Valeur R</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('murs','ep',this.checked)"> &Eacute;paisseur</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('murs','sacs',this.checked)"> Sacs</label>
+    </div>
+    <div class="table-wrap" style="margin-top:10px">
+      <table id="CC_tbl_murs">
+        <thead><tr>
+          <th style="width:130px">Identification <span class="th-unit">texte</span></th><th style="width:40px">Qt&eacute; <span class="th-unit">nb</span></th>
+          <th>Longueur <span class="th-unit" id="CC_thu_murs_l">(pi &middot; po)</span></th>
+          <th>Hauteur <span class="th-unit" id="CC_thu_murs_h">(pi &middot; po)</span></th>
+          <th class="col-surf">Surface <span class="th-unit" id="CC_thu_murs_surf">(pi&sup2;)</span></th>
+          <th class="col-r">Valeur R <span class="th-unit" id="CC_thu_murs_r">(R)</span></th>
+          
+          <th class="col-ep">&Eacute;pais. <span class="th-unit" id="CC_thu_murs_ep">(po)</span></th>
+          <th class="col-sacs">Sacs <span class="th-unit">nb</span></th>
+          <th style="width:54px"></th>
+        </tr></thead>
+        <tbody id="CC_tbody_murs"></tbody>
+        <tfoot><tr class="subtotal-row">
+          <td colspan="4">Sous-total murs</td>
+          <td class="col-surf" id="CC_stSurfMurs">&mdash;</td>
+          <td class="col-r"></td>
+          <td class="col-ep"></td>
+          <td class="col-sacs" id="CC_stSacsMurs">&mdash;</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="round-note">Les valeurs par ligne sont arrondi&eacute;es &agrave; l'unit&eacute; pour l'affichage.</div>
+    
+  </div>
+
+  <!-- ═══ PIGNONS ═══ -->
+  <div id="sec-pignons" class="section-label">Pignons isol&eacute;s</div>
+  <div class="card">
+    <div class="card-title">
+      <div class="ct-left"><span class="step-badge">6</span><span>Murs - Portions en pignon</span></div>
+    </div>
+    <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px;align-items:flex-start">
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">&Eacute;paisseur pignon <span id="CC_pigEpUnit">(po)</span></label>
+        <input type="text" id="CC_pigEp" class="jeu-global-input zone-hdr-input" value="5.5" oninput="CC_onZoneHeaderChange('pig')">
+        <input type="range" class="cfg-slider" id="CC_pigEpSlider" min="1" max="10" step="0.25" value="5.5" oninput="CC_onZoneSlider('pig','ep')">
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Valeur R</label>
+        <input type="text" id="CC_pigRHdr" class="jeu-global-input zone-hdr-input computed" style="background:var(--surface-3);color:var(--ink-3)" readonly tabindex="-1">
+        <input type="range" class="cfg-slider" id="CC_pigRSlider" min="3" max="35" step="1" value="19" oninput="CC_onZoneSlider('pig','r')">
+      </div>
+      <div class="zone-hdr-field">
+        <label class="zone-hdr-lbl">Densit&eacute; <span class="dens-unit">(lbs/pi&sup3;)</span></label>
+        <input type="text" id="CC_pigDens" class="jeu-global-input zone-hdr-input" value="4.0" oninput="CC_onZoneHeaderChange('pig')">
+        <input type="range" class="cfg-slider" id="CC_pigDensSlider" min="3" max="5" step="0.1" value="4" oninput="CC_onZoneDensSlider('pig')">
+        <button type="button" class="btn-jeu-apply" style="margin-top:2px" onclick="CC_applyEpPigAll()">Appliquer &eacute;p.</button>
+      </div>
+    </div>
+    <div class="col-toggles">
+      <span class="ct-lbl">Colonnes</span>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('pig','surf',this.checked)"> Surface</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('pig','seg',this.checked)"> Seg. pente</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('pig','sacs',this.checked)"> Sacs</label>
+    </div>
+    <div class="table-wrap" style="margin-top:10px">
+      <table id="CC_tbl_pig">
+        <thead><tr>
+          <th style="width:100px">Identification <span class="th-unit">texte</span></th><th style="width:40px">Qt&eacute; <span class="th-unit">nb</span></th>
+          <th style="width:120px">Type</th>
+          <th>Base 1 <span class="th-unit" id="CC_thu_pig_l1">(pi &middot; po)</span></th>
+          <th>Pente 1 <span class="th-unit">:12</span></th>
+          <th id="CC_th_pig_base2">Base 2 <span class="th-unit" id="CC_thu_pig_l2">(pi &middot; po)</span></th>
+          <th id="CC_th_pig_pente2">Pente 2 <span class="th-unit">:12</span></th>
+          <th class="col-surf">Surf <span class="th-unit" id="CC_thu_pig_surf">(pi&sup2;)</span></th>
+          <th class="col-seg">Seg. &nearr; <span class="th-unit" id="CC_thu_pig_seg">(pi)</span></th>
+          <th>&Eacute;pais. <span class="th-unit" id="CC_thu_pig_ep">(po)</span></th>
+          <th class="col-sacs">Sacs <span class="th-unit">nb</span></th>
+          <th style="width:54px"></th>
+        </tr></thead>
+        <tbody id="CC_tbody_pig"></tbody>
+        <tfoot><tr class="subtotal-row">
+          <td colspan="7" id="CC_pigFootLabel">Sous-total pignons</td>
+          <td class="col-surf" id="CC_stSurfPig">&mdash;</td>
+          <td class="col-seg" id="CC_stSegPig" style="font-size:11px;color:var(--ink-4)">&mdash;</td>
+          <td></td>
+          <td class="col-sacs" id="CC_stSacsPig">&mdash;</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="round-note">Les valeurs par ligne sont arrondi&eacute;es &agrave; l'unit&eacute; pour l'affichage.</div>
+    
+  </div>
+
+  <!-- ═══ OUVERTURES ═══ -->
+  <div id="sec-ouvertures" class="section-label">Ouvertures &agrave; retrancher</div>
+  <div class="card">
+    <div class="card-title">
+      <div class="ct-left"><span class="step-badge">7</span><span>Ouvertures &agrave; retrancher</span></div>
+    </div>
+    <div class="jeu-global">
+      <label for="CC_jeuGlobal">Jeu pour toutes les ouvertures <span class="th-unit" id="CC_jeuGlobalUnit">(po)</span></label>
+      <input type="text" id="CC_jeuGlobal" class="jeu-global-input" value="0.5" oninput="CC_onJeuGlobalInput()" onchange="CC_applyJeuAll()">
+      <button type="button" class="btn-jeu-apply" onclick="CC_applyJeuAll()">Appliquer &agrave; toutes</button>
+    </div>
+    <div class="info-note"><b>Jeu</b> = espace laiss&eacute; entre la fen&ecirc;tre et l'isolation, de chaque c&ocirc;t&eacute;. La surface &agrave; retrancher correspond aux dimensions de la fen&ecirc;tre + 2&times;jeu&nbsp;: largeur + 2&times;jeu, hauteur + 2&times;jeu.</div>
+    <div class="col-toggles">
+      <span class="ct-lbl">Colonnes</span>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('ouv','surf',this.checked)"> Surface</label>
+      <label><input type="checkbox" onchange="CC_toggleCol('ouv','perim',this.checked)"> P&eacute;rim&egrave;tre</label>
+      <label><input type="checkbox" checked onchange="CC_toggleCol('ouv','sacs',this.checked)"> Sacs retranch&eacute;s</label>
+    </div>
+    <div class="table-wrap" style="margin-top:10px">
+      <table id="CC_tbl_ouv">
+        <thead><tr>
+          <th style="width:70px">Code <span class="th-unit">texte</span></th><th style="width:70px">Emplacement <span class="th-unit">texte</span></th><th style="width:38px">Qt&eacute; <span class="th-unit">nb</span></th>
+          <th>Largeur <span class="th-unit" id="CC_thu_ouv_l">(pi &middot; po)</span></th>
+          <th>Hauteur <span class="th-unit" id="CC_thu_ouv_h">(pi &middot; po)</span></th>
+          <th style="width:64px">Jeu <span class="th-unit" id="CC_thu_ouv_jeu">(po)</span></th>
+          <th class="col-surf">Surface <span class="th-unit" id="CC_thu_ouv_surf">(pi&sup2;)</span></th>
+          <th class="col-perim">P&eacute;rim. <span class="th-unit" id="CC_thu_ouv_perim">(pi)</span></th>
+          <th class="col-sacs">Sacs <span class="th-unit">nb</span></th>
+          <th style="width:54px"></th>
+        </tr></thead>
+        <tbody id="CC_tbody_ouv"></tbody>
+        <tfoot><tr class="subtotal-row">
+          <td colspan="6">Sous-total ouvertures</td>
+          <td class="col-surf" id="CC_stSurfOuv">&mdash;</td>
+          <td class="col-perim" id="CC_stPerimOuv">&mdash;</td>
+          <td class="col-sacs" id="CC_stSacsOuv">&mdash;</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    
+  </div>
+
+  <!-- ═══ RECAP SECTIONS ═══ -->
+  <div class="card" id="CC_sectionRecapCard" style="display:none">
+    <div class="card-title">
+      <div class="ct-left"><span>R&eacute;capitulatif par section</span></div>
+    </div>
+    <div id="CC_sectionRecap"></div>
+  </div>
+
+  <!-- ═══ BUFFER ═══ -->
+  <div id="sec-buffer" class="card">
+    <div class="card-title">
+      <div class="ct-left"><span class="step-badge">8</span><span>Surplus / buffer</span></div>
+      <span class="card-hint">marge de s&eacute;curit&eacute; appliqu&eacute;e au nombre de sacs net</span>
+    </div>
+    <div class="buffer-row">
+      <input type="range" id="CC_bufSlider" oninput="CC_syncBuffer('slider')" min="0" max="30" value="5" step="1" tabindex="-1">
+      <div class="buffer-input-wrap">
+        <input type="text" class="buffer-input" id="CC_bufInput" oninput="CC_syncBuffer('input')" onblur="CC_clampBuffer()" value="5">
+        <span class="buffer-pct">%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MATÉRIAUX ═══ -->
+  <div id="sec-materiaux" class="section-label">Mat&eacute;riaux</div>
+
+  <div class="material-card">
+    <div class="mat-head">
+      <div class="mat-head-left">
+        <span class="step-badge">9</span>
+        <div class="mat-name">PROFIB CELL</div>
+        <div class="mat-sub">Cellulose souffl&eacute;e &mdash; fibre de bois</div>
+      </div>
+    </div>
+    <div class="mat-cond">
+      <div class="cond-field fixed"><span class="cond-label" id="CC_pCellKgLabel">kg / sac</span><input class="cond-input" type="text" id="CC_pCellKg" value="12.7" readonly tabindex="-1"></div>
+      <div class="cond-field fixed"><span class="cond-label">sacs / palette</span><input class="cond-input" type="text" id="CC_pCellPal" value="42" readonly tabindex="-1"></div>
+      <span class="cond-tag"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Fix&eacute; par le fabricant</span>
+    </div>
+    <!-- D&eacute;tail par zone -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px">
+      <div class="stat-tile">
+        <div class="stat-tile-label">Grenier</div>
+        <div class="stat-value-row"><span class="stat-value" id="CC_resGrenier">—</span><span class="stat-unit">sacs</span></div>
+        <div style="font-size:10px;color:var(--ink-4);margin-top:3px" id="CC_resGrenierSurf">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-tile-label">Plafonds</div>
+        <div class="stat-value-row"><span class="stat-value" id="CC_resPlafonds">—</span><span class="stat-unit">sacs</span></div>
+        <div style="font-size:10px;color:var(--ink-4);margin-top:3px" id="CC_resPlafondsSurf">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-tile-label">Murs + Pignons</div>
+        <div class="stat-value-row"><span class="stat-value" id="CC_resMurs">—</span><span class="stat-unit">sacs</span></div>
+        <div style="font-size:10px;color:var(--ink-4);margin-top:3px" id="CC_resMursSurf">—</div>
+      </div>
+    </div>
+    <div class="mat-stats">
+      <div class="stat-tile in-cart">
+        <div class="stat-tile-label">Sacs nets</div>
+        <div class="stat-value-row"><span class="stat-value" id="CC_resCellSacNet">—</span><span class="stat-unit">sacs</span></div>
+      </div>
+      <div class="stat-tile in-cart">
+        <div class="stat-tile-label">Avec buffer</div>
+        <div class="stat-value-row"><span class="stat-value" id="CC_resCellSacBuf">—</span><span class="stat-unit">sacs</span></div>
+      </div>
+      <div class="stat-tile in-cart">
+        <div class="stat-tile-label">Palettes</div>
+        <div class="stat-value-row"><span class="stat-value" id="CC_resCellPal">—</span><span class="stat-unit">pal.</span></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /inputs-col -->
+
+<!-- ═══ SUMMARY SIDEBAR ═══ -->
+<div class="summary-col">
+  <div class="summary">
+    <div class="summary-hero">
+      <div class="hero-label">Sacs PROFIB CELL requis</div>
+      <div class="hero-volume"><span class="hero-volume-val" id="CC_heroSacs">—</span><span class="hero-volume-unit">sacs</span></div>
+      <div class="hero-row">
+        <span class="hero-r-label">Surface totale</span>
+        <span class="hero-r-val" id="CC_heroSurf">—</span>
+      </div>
+      <div class="hero-sub-row">
+        <span class="hero-sub-label">Palettes</span>
+        <span class="hero-sub-val" id="CC_heroPal">—</span>
+      </div>
+    </div>
+
+    <div class="summary-buffer">
+      <div class="summary-buffer-label">Surplus / buffer <span id="CC_sBufDisplay">5%</span></div>
+      <div class="summary-buffer-row">
+        <input type="range" id="CC_sBufSlider" oninput="CC_syncBuffer('summary-slider')" min="0" max="30" value="5" step="1">
+        <input type="text" class="summary-buffer-input" id="CC_sBufInput" oninput="CC_syncBuffer('summary-input')" onblur="CC_clampBuffer()" value="5">
+        <span class="summary-buffer-pct">%</span>
+      </div>
+    </div>
+
+    <div class="summary-body">
+      <div class="summary-title">D&eacute;tail par zone</div>
+      <div class="summary-rows">
+        <div class="summary-row selected">
+          <div class="summary-mat"><span class="summary-mat-name">Grenier</span><span class="summary-mat-sub" id="CC_sumSubGrenier">—</span></div>
+          <div class="summary-fig"><div class="summary-fig-val" id="CC_sumGrenier">—</div><div class="summary-fig-sub">sacs</div></div>
+        </div>
+        <div class="summary-row selected">
+          <div class="summary-mat"><span class="summary-mat-name">Plafond-plancher</span><span class="summary-mat-sub" id="CC_sumSubPlafonds">—</span></div>
+          <div class="summary-fig"><div class="summary-fig-val" id="CC_sumPlafonds">—</div><div class="summary-fig-sub">sacs</div></div>
+        </div>
+        <div class="summary-row selected">
+          <div class="summary-mat"><span class="summary-mat-name">Murs + Pignons</span><span class="summary-mat-sub" id="CC_sumSubMurs">—</span></div>
+          <div class="summary-fig"><div class="summary-fig-val" id="CC_sumMurs">—</div><div class="summary-fig-sub">sacs</div></div>
+        </div>
+      </div>
+
+      <div class="summary-totals">
+        <div class="tot-cell">
+          <div class="tot-cell-label">Sacs nets</div>
+          <div class="tot-cell-val" id="CC_totSacsNet">—</div>
+          <div class="tot-cell-sub">avant buffer</div>
+        </div>
+        <div class="tot-cell">
+          <div class="tot-cell-label">Palettes</div>
+          <div class="tot-cell-val" id="CC_totPal">—</div>
+          <div class="tot-cell-sub"><span id="CC_totSacsBuf">—</span> sacs avec buffer</div>
+        </div>
+      </div>
+
+      <!-- Éléments pour le widget panier Odoo -->
+      <span id="CC_bags_num" style="display:none">0</span>
+      <span id="CC_meta_surplus" style="display:none">0</span>
+
+      <button class="panier-btn" id="CC_btnPanier" onclick="CC_ajouterAuPanier()" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"></path></svg>
+        Ajouter au panier
+      </button>
+      <div class="panier-status" id="CC_panierStatus"></div>
+
+      <div class="export-group">
+        <button class="export-btn" onclick="CC_exportPDF()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          PDF
+        </button>
+        <button class="export-btn" onclick="CC_exportJSON()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          JSON
+        </button>
+      </div>
+    </div>
+  </div>
+</div><!-- /summary-col -->
+
+</div><!-- /layout -->
+</div><!-- /page -->
+
+<div id="CC_exportOverlay" class="gp-export-overlay">
+  <div class="gp-spinner"></div>
+  <div class="gp-export-msg" id="CC_exportMsg">G&eacute;n&eacute;ration en cours&hellip;</div>
+</div>
