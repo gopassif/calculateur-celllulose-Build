@@ -2088,10 +2088,12 @@ CC_injectUI(CC_boot);
     areaMode:'poly',            // 'poly' | 'rect' pour l'outil Surface
     openMode:'rect',            // 'rect' | 'point' pour l'outil Ouverture
     lastOpenDims:null,          // dernières dims d'ouverture (saisie en série)
+    clip:null, undo:[], moving:null,  // copier/coller, annuler, déplacement
     imgW:0, imgH:0,
     pdfDoc:null, imgSrc:null,
     pages:[], cur:0,
     measures:[], scalePxPerM:null,
+    moving:null, clip:null, undo:[],
     ceilingH:2.4384,            // hauteur murs par défaut (8 pi)
     selId:null,
   };
@@ -2110,6 +2112,23 @@ CC_injectUI(CC_boot);
   function segLenM(a,b){return Math.hypot(b.x-a.x,b.y-a.y)/S.scalePxPerM;}
   function lineLenM(pts){var d=0;for(var i=1;i<pts.length;i++)d+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);return d/S.scalePxPerM;}
   function areaM2(pts){var a=0;for(var i=0;i<pts.length;i++){var j=(i+1)%pts.length;a+=pts[i].x*pts[j].y-pts[j].x*pts[i].y;}return Math.abs(a/2)/(S.scalePxPerM*S.scalePxPerM);}
+  // ── Sélection / déplacement / presse-papiers / annuler ─────────────────
+  function pointInPoly(p,pts){var c=false;for(var i=0,j=pts.length-1;i<pts.length;j=i++){var xi=pts[i].x,yi=pts[i].y,xj=pts[j].x,yj=pts[j].y;if(((yi>p.y)!==(yj>p.y))&&(p.x<(xj-xi)*(p.y-yi)/(yj-yi)+xi))c=!c;}return c;}
+  function distToSeg(p,a,b){var dx=b.x-a.x,dy=b.y-a.y,L2=dx*dx+dy*dy;if(L2===0)return Math.hypot(p.x-a.x,p.y-a.y);var t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/L2));return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));}
+  function hitMeasure(p){
+    var tol=8/(S.zoom||1);
+    // priorité aux dernières (dessus)
+    for(var i=S.measures.length-1;i>=0;i--){var m=S.measures[i];
+      if(m.geomType==='area'){ if(m.pts.length>=3&&pointInPoly(p,m.pts))return m; }
+      else if(m.geomType==='line'){ for(var k=1;k<m.pts.length;k++)if(distToSeg(p,m.pts[k-1],m.pts[k])<tol)return m; }
+      else if(m.geomType==='opening'){ var c=m.pts[0]; var hw=(m.owM*S.scalePxPerM)/2||10, hh=(m.ohM*S.scalePxPerM)/2||10; if(Math.abs(p.x-c.x)<=hw+tol&&Math.abs(p.y-c.y)<=hh+tol)return m; }
+    }
+    return null;
+  }
+  function translateMeasure(m,dx,dy){ if(Array.isArray(m.pts))m.pts=m.pts.map(function(q){return {x:q.x+dx,y:q.y+dy};}); }
+  function pushUndo(){ try{S.undo.push(JSON.stringify(S.measures)); if(S.undo.length>40)S.undo.shift();}catch(e){} }
+  function doUndo(){ if(!S.undo.length)return; var prev=S.undo.pop(); try{S.measures=JSON.parse(prev); S.pages[S.cur].measures=S.measures; S.selId=null; renderItems(); redraw();}catch(e){} }
+  function cloneMeasure(m,offset){ var c=JSON.parse(JSON.stringify(m)); c.id=idc++; c.sent=false; if(offset&&Array.isArray(c.pts))c.pts=c.pts.map(function(q){return {x:q.x+offset,y:q.y+offset};}); return c; }
   function centroid(pts){var x=0,y=0;pts.forEach(function(p){x+=p.x;y+=p.y;});return{x:x/pts.length,y:y/pts.length};}
   function measHeightM(m){return m.height!=null?m.height:S.ceilingH;}
 
@@ -2232,7 +2251,8 @@ CC_injectUI(CC_boot);
         '<button class="gpm-tool" id="GPM_t_line" data-tool="line" disabled title="Ligne (multi-segments)">'+svgIco('<path d="M4 20L20 4"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="4" r="2"/>')+'Ligne</button>'+
         '<button class="gpm-tool" id="GPM_t_area" data-tool="area" disabled title="Surface (R = rectangle)">'+svgIco('<path d="M5 3l14 4-3 14-13-5z"/>')+'Surf.</button>'+
         '<button class="gpm-tool" id="GPM_t_open" data-tool="opening" disabled title="Ouverture (rectangle)">'+svgIco('<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M5 12h14"/>')+'Ouvert.</button>'+
-        '<button class="gpm-tool" id="GPM_t_pan" data-tool="pan" disabled title="Déplacer">'+svgIco('<path d="M12 2v6M12 22v-6M2 12h6M22 12h-6"/>')+'Pan</button>'+
+        '<button class="gpm-tool" id="GPM_t_pan" data-tool="pan" disabled title="Déplacer la vue">'+svgIco('<path d="M12 2v6M12 22v-6M2 12h6M22 12h-6"/>')+'Pan</button>'+
+        '<button class="gpm-tool" id="GPM_t_select" data-tool="select" disabled title="Sélectionner / déplacer une mesure">'+svgIco('<path d="M5 3l7 17 2-7 7-2z"/>')+'Sélect.</button>'+
       '</div>'+
       '<div class="gpm-stage" id="GPM_stage">'+
         '<div class="gpm-empty" id="GPM_empty">'+
@@ -2342,7 +2362,7 @@ CC_injectUI(CC_boot);
     S.cur=0;
     gid('GPM_empty').style.display='none';
     gid('GPM_zoomctl').style.display='flex';
-    ['GPM_t_scale','GPM_t_line','GPM_t_area','GPM_t_open','GPM_t_pan'].forEach(function(id){gid(id).disabled=false;});
+    ['GPM_t_scale','GPM_t_line','GPM_t_area','GPM_t_open','GPM_t_pan','GPM_t_select'].forEach(function(id){gid(id).disabled=false;});
     renderPageTabs(); showPage(0);
   }
 
@@ -2404,7 +2424,7 @@ CC_injectUI(CC_boot);
     S.tool=t; S.drawing=null;
     if(t==='line'||t==='area')S.drawTool=t;
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-tool[data-tool]'),function(b){b.classList.toggle('active',b.dataset.tool===t);});
-    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>polygone</b> : clique les sommets, double-clic pour fermer.')+' Touche <b>R</b> bascule rect/polygone.',opening:(S.openMode==='point'?'Ouverture <b>par point</b> : clique l\'emplacement, puis saisis les dimensions.':'Ouverture <b>rectangle</b> : 2 coins opposés.')+' Touche <b>R</b> bascule point/rectangle.',pan:'Glisse pour déplacer (ou clic-molette).'};
+    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>polygone</b> : clique les sommets, double-clic pour fermer.')+' Touche <b>R</b> bascule rect/polygone.',opening:(S.openMode==='point'?'Ouverture <b>par point</b> : clique l\'emplacement, puis saisis les dimensions.':'Ouverture <b>rectangle</b> : 2 coins opposés.')+' Touche <b>R</b> bascule point/rectangle.',pan:'Glisse pour déplacer (ou clic-molette).',select:'Clique une mesure pour la sélectionner, puis <b>glisse</b> pour la déplacer. Ctrl/Cmd+C/V/X, Suppr, Ctrl/Cmd+Z.'};
     var h=gid('GPM_hint'); h.innerHTML=hints[t]||''; h.classList.toggle('show',!!hints[t]);
     redraw();
   }
@@ -2432,13 +2452,14 @@ CC_injectUI(CC_boot);
       updScaleStatus(); redraw(); setTool(S.drawTool); renderPageTabs();
     }
     function cancel(){S.drawing=null;redraw();modal.classList.remove('show');cleanup();}
-    function onKey(e){if(e.key==='Enter')confirm();if(e.key==='Escape')cancel();}
+    function onKey(e){if(e.key==='Enter')confirm();if(e.key==='Escape'){e.stopPropagation();cancel();}}
     function cleanup(){gid('GPM_smOk').onclick=null;gid('GPM_smCancel').onclick=null;input.removeEventListener('keydown',onKey);input.style.borderColor='';}
     gid('GPM_smOk').onclick=confirm; gid('GPM_smCancel').onclick=cancel; input.addEventListener('keydown',onKey);
   }
 
   // ═══════════════════════════ Finalisation mesures ═════════════════════
   function finishMeasure(){
+    pushUndo();
     var d=S.drawing;
     if(d.geom==='line'&&d.pts.length<2){S.drawing=null;redraw();return;}
     if(d.geom==='area'&&d.pts.length<3){S.drawing=null;redraw();return;}
@@ -2449,6 +2470,7 @@ CC_injectUI(CC_boot);
     openRoleModal(m,true);
   }
   function finishAreaRect(){
+    pushUndo();
     var d=S.drawing, a=d.pts[0], b=d.pts[1];
     var x0=Math.min(a.x,b.x),y0=Math.min(a.y,b.y),x1=Math.max(a.x,b.x),y1=Math.max(a.y,b.y);
     var pts=[{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
@@ -2482,6 +2504,7 @@ CC_injectUI(CC_boot);
     function doSave(){
       var W=opReadM('W'), H=opReadM('H');
       if(!(W>0&&H>0)){ dims.style.outline='1px solid #f87171'; return null; }
+      pushUndo();
       var sids=readChkGroup(secsBox); if(!sids.length)sids=[secItems[0].id];
       var m={id:idc++,geomType:'opening',pts:[center],name:name.value.trim(),owM:W,ohM:H,secIds:sids,sent:false};
       S.measures.push(m); S.selId=m.id; S.lastOpenDims={W:W,H:H};
@@ -2491,7 +2514,7 @@ CC_injectUI(CC_boot);
     function ok(){ var r=doSave(); if(r){ modal.classList.remove('show'); cleanup(); } }
     function okNew(){ var r=doSave(); if(r){ cleanup(); openOpeningModal(center, r.W, r.H); } }
     function cancel(){modal.classList.remove('show');cleanup();S.drawing=null;redraw();}
-    function onKey(e){if(e.key==='Enter')ok();if(e.key==='Escape')cancel();}
+    function onKey(e){if(e.key==='Enter')ok();if(e.key==='Escape'){e.stopPropagation();cancel();}}
     function cleanup(){gid('GPM_opOk').onclick=null;gid('GPM_opOkNew').onclick=null;gid('GPM_opCancel').onclick=null;dims.style.outline='';modal.removeEventListener('keydown',onKey);}
     gid('GPM_opOk').onclick=ok; gid('GPM_opOkNew').onclick=okNew; gid('GPM_opCancel').onclick=cancel; modal.addEventListener('keydown',onKey);
   }
@@ -2516,7 +2539,21 @@ CC_injectUI(CC_boot);
       var showH=(m.geomType==='line')||(m.geomType==='area'&&ap.indexOf('perimetre')>=0);
       hRow.style.display=showH?'block':'none';
     }
-    appsBox.onchange=updH; updH();
+    // Une mesure a UNE destination (plancher OU plafond OU entretoit…). « Périmètre → murs »
+    // reste un ajout indépendant pour une surface. Évite d'envoyer la surface dans 2 zones.
+    function enforceExcl(ev){
+      var t=ev&&ev.target; if(!t||t.type!=='checkbox')return;
+      if(m.geomType==='area'&&t.value==='perimetre')return; // ajout indépendant
+      if(t.checked){
+        Array.prototype.forEach.call(appsBox.querySelectorAll('input[type=checkbox]'),function(i){
+          if(i===t)return;
+          if(m.geomType==='area'&&i.value==='perimetre')return; // ne décoche pas le périmètre
+          i.checked=false;
+        });
+      }
+    }
+    appsBox.onchange=function(ev){ enforceExcl(ev); updH(); };
+    updH();
     gid('GPM_rmH').value=m.height!=null?lenVal(m.height).toFixed(2):'';
     modal.classList.add('show'); setTimeout(function(){gid('GPM_rmName').focus();},30);
     function ok(){
@@ -2530,7 +2567,7 @@ CC_injectUI(CC_boot);
       modal.classList.remove('show'); cleanup(); renderItems(); redraw();
     }
     function cancel(){modal.classList.remove('show');cleanup();renderItems();redraw();}
-    function onKey(e){if(e.key==='Escape')cancel();}
+    function onKey(e){if(e.key==='Escape'){e.stopPropagation();cancel();}}
     function cleanup(){gid('GPM_rmOk').onclick=null;gid('GPM_rmCancel').onclick=null;appsBox.onchange=null;modal.removeEventListener('keydown',onKey);}
     gid('GPM_rmOk').onclick=ok; gid('GPM_rmCancel').onclick=cancel; modal.addEventListener('keydown',onKey);
   }
@@ -2643,11 +2680,13 @@ CC_injectUI(CC_boot);
     okBtn.onclick=function(){ deleteMeasure(m.id); prev(); };
   }
   function deleteMeasure(id){
+    pushUndo();
     S.measures=S.measures.filter(function(x){return x.id!==id;}); S.pages[S.cur].measures=S.measures;
     if(S.selId===id)S.selId=null;
     renderItems(); redraw(); renderPageTabs();
   }
   function duplicateMeasure(id){
+    pushUndo();
     var src=S.measures.find(function(x){return x.id===id;}); if(!src)return;
     var c=JSON.parse(JSON.stringify(src));
     c.id=idc++; c.sent=false;
@@ -2817,6 +2856,12 @@ CC_injectUI(CC_boot);
       if(S.tool==='pan'){panning={x:e.clientX-S.panX,y:e.clientY-S.panY};return;}
       var p=toImg(e);
       if(p.x<0||p.x>S.imgW||p.y<0||p.y>S.imgH)return;
+      if(S.tool==='select'){
+        var hit=hitMeasure(p);
+        if(hit){ S.selId=hit.id; S.moving={id:hit.id,last:p,moved:false}; }
+        else { S.selId=null; S.moving=null; }
+        renderItems(); redraw(); return;
+      }
       if((S.tool==='line'||S.tool==='area')&&!S.scalePxPerM){ alert('Cale d\'abord l\'échelle.'); setTool('scale'); return; }
       if(S.tool==='scale'){ if(!S.drawing)S.drawing={pts:[p]}; else {S.drawing.pts.push(p);finishScale();} redraw(); return; }
       if(S.tool==='line'){ if(!S.drawing)S.drawing={geom:'line',pts:[p]}; else S.drawing.pts.push(p); redraw(); return; }
@@ -2833,10 +2878,16 @@ CC_injectUI(CC_boot);
       }
     });
     stage.addEventListener('mousemove',function(e){
+      if(S.moving){
+        if(!S.moving.moved){pushUndo();S.moving.moved=true;}
+        var pm=toImg(e); var m=S.measures.find(function(x){return x.id===S.moving.id;});
+        if(m){translateMeasure(m,pm.x-S.moving.last.x,pm.y-S.moving.last.y);}
+        S.moving.last=pm; redraw(); return;
+      }
       if(panning){S.panX=e.clientX-panning.x;S.panY=e.clientY-panning.y;applyTransform();return;}
       if(S.drawing){S.hover=toImg(e);redraw();}
     });
-    window.addEventListener('mouseup',function(e){if(e.button===1)midPan=false;if(!midPan)panning=null;});
+    window.addEventListener('mouseup',function(e){if(e.button===1)midPan=false;if(!midPan)panning=null;if(S.moving)S.moving=null;});
     stage.addEventListener('dblclick',function(){
       if(S.drawing&&S.tool==='line')finishMeasure();
       else if(S.drawing&&S.tool==='area'&&S.areaMode==='poly'&&S.drawing.pts.length>=3)finishMeasure();
@@ -2848,12 +2899,22 @@ CC_injectUI(CC_boot);
     window.addEventListener('keydown',function(e){
       if(!el||!el.classList.contains('show'))return;
       var tag=(e.target.tagName||'').toLowerCase(); var inField=tag==='input'||tag==='textarea'||tag==='select';
+      var mod=e.ctrlKey||e.metaKey;
+      if(mod&&!inField){
+        var k=(e.key||'').toLowerCase();
+        if(k==='c'&&S.selId!=null){ var mc=S.measures.find(function(x){return x.id===S.selId;}); if(mc)S.clip=JSON.parse(JSON.stringify(mc)); e.preventDefault(); return; }
+        if(k==='x'&&S.selId!=null){ var mx=S.measures.find(function(x){return x.id===S.selId;}); if(mx){S.clip=JSON.parse(JSON.stringify(mx)); deleteMeasure(S.selId);} e.preventDefault(); return; }
+        if(k==='v'&&S.clip){ pushUndo(); var c=cloneMeasure(S.clip,16); S.measures.push(c); S.selId=c.id; renderItems(); redraw(); e.preventDefault(); return; }
+        if(k==='z'){ doUndo(); e.preventDefault(); return; }
+      }
       if((e.key==='Backspace'||e.key==='Delete')&&S.selId!=null&&!inField){e.preventDefault();deleteMeasure(S.selId);return;}
       if(e.key==='Enter'&&S.drawing&&(S.tool==='line'||(S.tool==='area'&&S.areaMode==='poly')))finishMeasure();
       if((e.key==='r'||e.key==='R')&&S.tool==='area'&&!inField){ S.areaMode=S.areaMode==='rect'?'poly':'rect'; S.drawing=null; setTool('area'); }
       if((e.key==='r'||e.key==='R')&&S.tool==='opening'&&!inField){ S.openMode=S.openMode==='rect'?'point':'rect'; S.drawing=null; setTool('opening'); }
       if(e.key==='Escape'){
-        var om=el.querySelector('.gpm-modal-bg.show'); if(om){om.classList.remove('show');S.drawing=null;redraw();return;}
+        // 1er ESC : ferme UNIQUEMENT la modale ouverte (sans toucher au dessin ni à l'overlay)
+        var om=el.querySelector('.gpm-modal-bg.show'); if(om){om.classList.remove('show');return;}
+        // 2e ESC (aucune modale) : annule le tracé en cours, sinon ferme la prise de mesure
         if(S.drawing){S.drawing=null;redraw();return;}
         GPM_close();
       }
@@ -2934,6 +2995,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure };
   }
 })();
