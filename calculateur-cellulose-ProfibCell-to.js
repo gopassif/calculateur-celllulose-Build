@@ -135,7 +135,7 @@ function CC_rForMurEpDens(ep, dens){
 var CC_SAVE_KEY='gp_cc_profibcell_v1';
 var CC_ZOOM_KEY='gp_cc_profibcell_zoom_v1';
 var CC_unitSystem='imp';
-var CC_sections=[{id:'s1',name:'Section 1'}];
+var CC_sections=[{id:'s1',name:'RDC'}];
 var CC_zoomLevels=[0.8,0.875,0.95,1,1.075,1.15,1.25,1.4];
 var CC_zoomIdx=3;
 
@@ -1641,7 +1641,7 @@ function CC_hasContent(){
 function CC_newProject(){
   if(!confirm('Effacer le projet en cours et repartir de z\u00e9ro\u00a0?'))return;
   CC_rows={grenier:[],plafonds:[],murs:[],pig:[],ouv:[]};
-  CC_sections=[{id:'s1',name:'Section 1'}];
+  CC_sections=[{id:'s1',name:'RDC'}];
   ['CC_projNo','CC_projNom','CC_projCli','CC_projEnt','CC_projAdr','CC_projVille','CC_projProv','CC_projCP','CC_projNotes'].forEach(function(id){var el=CC_gid(id);if(el)el.value='';});
   CC_renderSectionsBar();
   CC_renderAllTables();
@@ -2126,9 +2126,13 @@ CC_injectUI(CC_boot);
     return null;
   }
   function translateMeasure(m,dx,dy){ if(Array.isArray(m.pts))m.pts=m.pts.map(function(q){return {x:q.x+dx,y:q.y+dy};}); }
+  function hitVertex(m,p){ var tol=10/(S.zoom||1); for(var i=0;i<m.pts.length;i++){ if(Math.hypot(p.x-m.pts[i].x,p.y-m.pts[i].y)<tol)return i; } return -1; }
   function pushUndo(){ try{S.undo.push(JSON.stringify(S.measures)); if(S.undo.length>40)S.undo.shift();}catch(e){} }
   function doUndo(){ if(!S.undo.length)return; var prev=S.undo.pop(); try{S.measures=JSON.parse(prev); S.pages[S.cur].measures=S.measures; S.selId=null; renderItems(); redraw();}catch(e){} }
   function cloneMeasure(m,offset){ var c=JSON.parse(JSON.stringify(m)); c.id=idc++; c.sent=false; if(offset&&Array.isArray(c.pts))c.pts=c.pts.map(function(q){return {x:q.x+offset,y:q.y+offset};}); return c; }
+  function slopeFactor(p){ p=parseFloat(p)||0; return p>0?Math.sqrt(1+(p/12)*(p/12)):1; }
+  function slopedArea(m){ return (m.areaM2||0)*slopeFactor(m.pente); }
+  function penteDeg(p){ p=parseFloat(p)||0; return p>0?(Math.atan2(p,12)*180/Math.PI):0; }
   function centroid(pts){var x=0,y=0;pts.forEach(function(p){x+=p.x;y+=p.y;});return{x:x/pts.length,y:y/pts.length};}
   function measHeightM(m){return m.height!=null?m.height:S.ceilingH;}
 
@@ -2308,6 +2312,7 @@ CC_injectUI(CC_boot);
       '<label>Membranes</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0 0 6px"><input type="checkbox" id="GPM_rmMemInt" style="width:auto"> Membrane intérieure</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0"><input type="checkbox" id="GPM_rmMemExt" style="width:auto"> Membrane extérieure</label>'+
+      '<div id="GPM_rmPenteRow" style="display:none"><label>Pente (x:12) — surface inclinée, vide = à plat <span id="GPM_rmPenteDeg" style="color:#8896a5"></span></label><input type="number" id="GPM_rmPente" step="any" placeholder="ex. 6"></div>'+
       '<div id="GPM_rmHRow" style="display:none"><label>Hauteur pour cette mesure (<span class="gpm-ou">m</span>) — vide = globale</label><input type="number" id="GPM_rmH" step="any"></div>'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_rmCancel">Annuler</button><button class="gpm-ok" id="GPM_rmOk">Enregistrer</button></div>'+
     '</div></div>'+
@@ -2539,21 +2544,19 @@ CC_injectUI(CC_boot);
       var showH=(m.geomType==='line')||(m.geomType==='area'&&ap.indexOf('perimetre')>=0);
       hRow.style.display=showH?'block':'none';
     }
-    // Une mesure a UNE destination (plancher OU plafond OU entretoit…). « Périmètre → murs »
-    // reste un ajout indépendant pour une surface. Évite d'envoyer la surface dans 2 zones.
-    function enforceExcl(ev){
-      var t=ev&&ev.target; if(!t||t.type!=='checkbox')return;
-      if(m.geomType==='area'&&t.value==='perimetre')return; // ajout indépendant
-      if(t.checked){
-        Array.prototype.forEach.call(appsBox.querySelectorAll('input[type=checkbox]'),function(i){
-          if(i===t)return;
-          if(m.geomType==='area'&&i.value==='perimetre')return; // ne décoche pas le périmètre
-          i.checked=false;
-        });
-      }
-    }
-    appsBox.onchange=function(ev){ enforceExcl(ev); updH(); };
+    appsBox.onchange=function(){ updH(); };
     updH();
+    // Pente (surfaces seulement) : interpolation de la surface réelle
+    var penteRow=gid('GPM_rmPenteRow'), penteIn=gid('GPM_rmPente'), penteDegEl=gid('GPM_rmPenteDeg');
+    if(m.geomType==='area'){
+      penteRow.style.display='block';
+      penteIn.value=(m.pente!=null&&m.pente!=='')?m.pente:'';
+      function updPente(){
+        var p=parseFloat(penteIn.value)||0;
+        penteDegEl.textContent=p>0?('— '+penteDeg(p).toFixed(1)+'° · aire réelle '+fmtArea(m.areaM2*slopeFactor(p))):'';
+      }
+      penteIn.oninput=updPente; updPente();
+    } else { penteRow.style.display='none'; }
     gid('GPM_rmH').value=m.height!=null?lenVal(m.height).toFixed(2):'';
     modal.classList.add('show'); setTimeout(function(){gid('GPM_rmName').focus();},30);
     function ok(){
@@ -2564,11 +2567,12 @@ CC_injectUI(CC_boot);
       m.memExt=gid('GPM_rmMemExt').checked;
       var hv=gid('GPM_rmH').value;
       m.height=(hv&&parseFloat(hv)>0)?(S.unit==='metric'?parseFloat(hv):parseFloat(hv)*FT_M):null;
+      m.pente=(m.geomType==='area')?(parseFloat(gid('GPM_rmPente').value)||0):0;
       modal.classList.remove('show'); cleanup(); renderItems(); redraw();
     }
     function cancel(){modal.classList.remove('show');cleanup();renderItems();redraw();}
     function onKey(e){if(e.key==='Escape'){e.stopPropagation();cancel();}}
-    function cleanup(){gid('GPM_rmOk').onclick=null;gid('GPM_rmCancel').onclick=null;appsBox.onchange=null;modal.removeEventListener('keydown',onKey);}
+    function cleanup(){gid('GPM_rmOk').onclick=null;gid('GPM_rmCancel').onclick=null;appsBox.onchange=null;gid('GPM_rmPente').oninput=null;modal.removeEventListener('keydown',onKey);}
     gid('GPM_rmOk').onclick=ok; gid('GPM_rmCancel').onclick=cancel; modal.addEventListener('keydown',onKey);
   }
 
@@ -2608,7 +2612,7 @@ CC_injectUI(CC_boot);
       var pStr=m.pts.map(function(p){return p.x+','+p.y;}).join(' ');
       if(m.geomType==='area')svg+='<polygon points="'+pStr+'" fill="'+col+'33" stroke="'+col+'" stroke-width="'+(sel?4:2.5)+'"/>';
       else svg+='<polyline points="'+pStr+'" fill="none" stroke="'+col+'" stroke-width="'+(sel?4:2.5)+'"/>';
-      m.pts.forEach(function(p){svg+='<circle cx="'+p.x+'" cy="'+p.y+'" r="3.5" fill="'+col+'"/>';});
+      m.pts.forEach(function(p){var hr=sel?6:3.5;svg+='<circle cx="'+p.x+'" cy="'+p.y+'" r="'+hr+'" fill="'+(sel?'#ffffff':col)+'" stroke="'+col+'" stroke-width="'+(sel?2:0)+'"/>';});
       var c=centroid(m.pts), lbl2=measLabel(m), w2=Math.max(70,lbl2.length*6.5);
       svg+='<rect x="'+(c.x-w2/2)+'" y="'+(c.y-11)+'" width="'+w2+'" height="18" rx="4" fill="rgba(10,14,20,.85)"/>';
       svg+='<text x="'+c.x+'" y="'+(c.y+3)+'" fill="#fff" font-size="11" font-family="monospace" text-anchor="middle">'+lbl2+'</text>';
@@ -2640,7 +2644,7 @@ CC_injectUI(CC_boot);
     S.measures.forEach(function(m){
       var col=measColor(m);
       var nameTxt=m.geomType==='opening'?(m.name||'Ouverture'):(m.name||(m.geomType==='area'?'Surface':'Ligne'));
-      var geomTxt=m.geomType==='opening'?(lenVal(m.owM).toFixed(2)+'×'+lenVal(m.ohM).toFixed(2)+' '+lenUnit()):(m.geomType==='area'?fmtArea(m.areaM2):fmtLen(m.lengthM));
+      var geomTxt=m.geomType==='opening'?(lenVal(m.owM).toFixed(2)+'×'+lenVal(m.ohM).toFixed(2)+' '+lenUnit()):(m.geomType==='area'?(m.pente>0?fmtArea(slopedArea(m))+' (pente '+m.pente+':12)':fmtArea(m.areaM2)):fmtLen(m.lengthM));
       if(m.geomType==='line'){var nseg=m.pts.length-1; geomTxt+=' · '+nseg+' seg.';}
       var tags='';
       if(m.geomType!=='opening'){
@@ -2780,7 +2784,7 @@ CC_injectUI(CC_boot);
     if(typeof CC_rows==='undefined'||typeof CC_defaultRow!=='function'){ alert('Calculateur introuvable.'); return 0; }
     var touched={}, count=0;
     var firstSec=(typeof CC_sections!=='undefined'&&CC_sections.length)?CC_sections[0].id:'s1';
-    var ft2=function(m){return String(Math.round(m.areaM2*M2_FT2*10)/10);};
+    var ft2=function(m){return String(Math.round(slopedArea(m)*M2_FT2*10)/10);};
     measures.forEach(function(m){
       var mem=membraneTag(m), suf=mem?(' · '+mem):'';
       var secIds=(m.secIds&&m.secIds.length)?m.secIds:(m.secId?[m.secId]:[firstSec]);
@@ -2822,7 +2826,7 @@ CC_injectUI(CC_boot);
             } else {
               var zone=(app==='grenier'||app==='toiture')?'grenier':'plafonds';
               var rr=CC_defaultRow(zone); rr.secId=secId; rr.label=lbl;
-              if(m.rect){ setDim(rr,'l',m.rectWM); setDim(rr,'w',m.rectHM); }
+              if(m.rect&&!(m.pente>0)){ setDim(rr,'l',m.rectWM); setDim(rr,'w',m.rectHM); }
               else { rr.surf=ft2(m); }
               CC_rows[zone].push(rr); touched[zone]=1; count++;
             }
@@ -2857,8 +2861,10 @@ CC_injectUI(CC_boot);
       var p=toImg(e);
       if(p.x<0||p.x>S.imgW||p.y<0||p.y>S.imgH)return;
       if(S.tool==='select'){
+        var sel=S.measures.find(function(x){return x.id===S.selId;});
+        if(sel&&sel.geomType!=='opening'){ var vi=hitVertex(sel,p); if(vi>=0){ S.moving={id:sel.id,last:p,moved:false,vtx:vi}; redraw(); return; } }
         var hit=hitMeasure(p);
-        if(hit){ S.selId=hit.id; S.moving={id:hit.id,last:p,moved:false}; }
+        if(hit){ S.selId=hit.id; S.moving={id:hit.id,last:p,moved:false,vtx:null}; }
         else { S.selId=null; S.moving=null; }
         renderItems(); redraw(); return;
       }
@@ -2881,7 +2887,15 @@ CC_injectUI(CC_boot);
       if(S.moving){
         if(!S.moving.moved){pushUndo();S.moving.moved=true;}
         var pm=toImg(e); var m=S.measures.find(function(x){return x.id===S.moving.id;});
-        if(m){translateMeasure(m,pm.x-S.moving.last.x,pm.y-S.moving.last.y);}
+        if(m){
+          if(S.moving.vtx!=null){
+            m.pts[S.moving.vtx]={x:pm.x,y:pm.y};
+            if(m.geomType==='area'){ m.rect=false; m.areaM2=areaM2(m.pts); }
+            else if(m.geomType==='line'){ m.lengthM=lineLenM(m.pts); }
+          } else {
+            translateMeasure(m,pm.x-S.moving.last.x,pm.y-S.moving.last.y);
+          }
+        }
         S.moving.last=pm; redraw(); return;
       }
       if(panning){S.panX=e.clientX-panning.x;S.panY=e.clientY-panning.y;applyTransform();return;}
@@ -2995,6 +3009,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM };
   }
 })();
