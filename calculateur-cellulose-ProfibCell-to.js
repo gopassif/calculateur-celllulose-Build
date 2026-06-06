@@ -1413,7 +1413,7 @@ function CC_recalc(){
 
   // Sous-totaux sections dans les tables
   if(CC_sections.length>1){
-    ['grenier','plafonds','murs'].forEach(function(zone){
+    ['grenier','plafonds','murs','pig','ouv'].forEach(function(zone){
       CC_sections.forEach(function(sec){
         var subTr=document.querySelector('#CC_tbody_'+zone+' tr[data-sec-sub="'+sec.id+'"]');
         if(subTr)subTr.innerHTML=CC_makeSecSubTd(zone,sec.id,CC_rows[zone]);
@@ -1958,8 +1958,9 @@ function CC_doPDF(){
       didParseCell:function(data){if(data.section==='body'&&data.row.raw.length===1)return;if(data.column.index===1||data.column.index>=3)data.cell.styles.halign='right';}}});
 
   // OUVERTURES : Code, Emplacement, Qté, Largeur, Hauteur, Jeu, Surface, Sacs retranchés
-  var headO=['Code','Emplacement','Qt\u00e9','Larg. '+U_DIM,'Haut. '+U_DIM,'Jeu ('+U_EP+')','Surf. ('+U_SURF+')','Sacs retr.'];
-  var oRowFn=function(r){return [r.code||'\u2014',r.place||'\u2014',CC_pf(r.qty)||1,pDim(r.l_pi,r.l_po,r.l_mm),pDim(r.h_pi,r.h_po,r.h_mm),(MM?CC_fmt((CC_pf(r.jeu)||0.5)*25.4,0):CC_fmt(CC_pf(r.jeu)||0.5,2)),pSurf(r._surf||0),(r._surf>0?'-'+intSac(r._sacs||0):'0')];};
+  var headO=['Code','Emplacement','Qt\u00e9','Larg. (po)','Haut. (po)','Jeu ('+U_EP+')','Surf. ('+U_SURF+')','Sacs retr.'];
+  var oPo=function(pi,po,mm){return MM?(CC_pf(mm)/25.4):((CC_pf(pi)||0)*12+(CC_pf(po)||0));};
+  var oRowFn=function(r){return [r.code||'\u2014',r.place||'\u2014',CC_pf(r.qty)||1,CC_fmt(oPo(r.l_pi,r.l_po,r.l_mm),1),CC_fmt(oPo(r.h_pi,r.h_po,r.h_mm),1),(MM?CC_fmt((CC_pf(r.jeu)||0.5)*25.4,0):CC_fmt(CC_pf(r.jeu)||0.5,2)),pSurf(r._surf||0),(r._surf>0?'-'+intSac(r._sacs||0):'0')];};
   var oSubFn=function(sec,rr){var ss=0,sk=0;rr.forEach(function(r){ss+=r._surf||0;sk+=r._sacs||0;});return [{content:'Sous-total \u2014 '+sec.name,colSpan:6,styles:Object.assign({halign:'left'},SEC_SUB)},{content:ss?pSurf(ss):'\u2014',styles:SEC_SUB},{content:'-'+intSac(sk),styles:SEC_SUB}];};
   var oBody=CC_rows.ouv.length?(d.multiSection?grouped(CC_rows.ouv,8,oRowFn,oSubFn):CC_rows.ouv.map(oRowFn)):[['Aucune ouverture saisie','','','','','','','']];
   paginate({title:'Ouvertures \u00e0 retrancher',intro:'Surface des ouvertures (jeu inclus) retranch\u00e9e des murs.',
@@ -2058,7 +2059,9 @@ CC_injectUI(CC_boot);
       {id:'plafond',  name:'Surface de plafond',  color:'#a78bfa'},
       {id:'grenier',  name:'Surface de grenier',  color:'#facc15'},
       {id:'toiture',  name:'Toiture (pan)',       color:'#f472b6'},
-      {id:'dalle',    name:'Dalle',               color:'#fcd34d'}
+      {id:'dalle',    name:'Dalle',               color:'#fcd34d'},
+      {id:'mur',      name:'Mur (surface)',       color:'#60a5fa'},
+      {id:'pignon',   name:'Pignon',              color:'#fca5a5'}
     ]
   };
   var APP_BY_ID={}; Object.keys(APPS).forEach(function(g){APPS[g].forEach(function(a){APP_BY_ID[a.id]=a;});});
@@ -2182,6 +2185,9 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-sendrow select,#GPM_overlay .gpm-sendrow input{padding:5px 7px;font-size:12px;}'+
     '#GPM_overlay .gpm-sendrow .sr-name{font-size:12px;}'+
     '#GPM_overlay .gpm-sendrow .sr-meas{font-size:10px;color:#8896a5;font-family:monospace;}'+
+    '#GPM_overlay #GPM_scaleModal{background:transparent;align-items:flex-start;pointer-events:none;}'+
+    '#GPM_overlay #GPM_scaleModal .gpm-modal{pointer-events:auto;margin-top:64px;box-shadow:0 20px 60px rgba(0,0,0,.7);}'+
+    '#GPM_overlay #GPM_scaleModal h4{cursor:move;user-select:none;}'+
     '';
     var st=document.createElement('style'); st.id='GPM_style'; st.textContent=css; document.head.appendChild(st);
   }
@@ -2260,6 +2266,7 @@ CC_injectUI(CC_boot);
       '<div style="font-family:monospace;font-size:12px;color:#4ade80;margin-bottom:8px" id="GPM_rmGeom"></div>'+
       '<label>Nom (optionnel)</label><input type="text" id="GPM_rmName" placeholder="ex. Mur nord">'+
       '<label>Application</label><select id="GPM_rmApp"></select>'+
+      '<label>Section</label><select id="GPM_rmSec"></select>'+
       '<label>Membranes</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0 0 6px"><input type="checkbox" id="GPM_rmMemInt" style="width:auto"> Membrane intérieure</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0"><input type="checkbox" id="GPM_rmMemExt" style="width:auto"> Membrane extérieure</label>'+
@@ -2390,6 +2397,7 @@ CC_injectUI(CC_boot);
   function finishScale(){
     redraw();
     var modal=gid('GPM_scaleModal'), input=gid('GPM_smInput');
+    var smBox=modal.querySelector('.gpm-modal'); if(smBox&&smBox._resetDrag)smBox._resetDrag();
     gid('GPM_smUnit').textContent=S.unit==='metric'?'en millimètres (mm)':'en pouces';
     input.value=S.unit==='metric'?'3000':'120';
     modal.classList.add('show'); setTimeout(function(){input.focus();input.select();},30);
@@ -2436,21 +2444,11 @@ CC_injectUI(CC_boot);
   }
 
   // ═══════════════════════════ Modale ouverture ═════════════════════════
-  // dimensions pi-po (ou mm) pour la modale ouverture
+  // dimensions des ouvertures : TOUJOURS en pouces (po), peu importe le système d'unités
   function opDimRow(label,key,m){
-    if(S.unit==='metric'){
-      return '<label>'+label+' (mm)</label><input type="number" id="GPM_op'+key+'_mm" step="any" value="'+Math.round(m*1000)+'">';
-    }
-    var f=mToImpFields(m);
-    return '<label>'+label+' (pi · po)</label><div style="display:flex;gap:6px;align-items:center">'+
-      '<input type="number" id="GPM_op'+key+'_pi" step="any" value="'+(f.pi||'')+'" style="width:80px"> <span style="color:#8896a5;font-size:12px">pi</span>'+
-      '<input type="number" id="GPM_op'+key+'_po" step="any" value="'+(f.po===''?'':f.po)+'" style="width:80px"> <span style="color:#8896a5;font-size:12px">po</span></div>';
+    return '<label>'+label+' (po)</label><input type="number" id="GPM_op'+key+'_po" step="any" value="'+(Math.round(m/IN_M*100)/100)+'">';
   }
-  function opReadM(key){
-    if(S.unit==='metric'){ var mm=parseFloat((gid('GPM_op'+key+'_mm')||{}).value)||0; return mm/1000; }
-    var pi=parseFloat((gid('GPM_op'+key+'_pi')||{}).value)||0, po=parseFloat((gid('GPM_op'+key+'_po')||{}).value)||0;
-    return (pi*12+po)*IN_M;
-  }
+  function opReadM(key){ var po=parseFloat((gid('GPM_op'+key+'_po')||{}).value)||0; return po*IN_M; }
   function openOpeningModal(center, owM, ohM){
     var modal=gid('GPM_openModal'), name=gid('GPM_opName'), dims=gid('GPM_opDims'), sec=gid('GPM_opSec');
     name.value='';
@@ -2481,6 +2479,10 @@ CC_injectUI(CC_boot);
     var list=APPS[m.geomType]||[];
     sel.innerHTML='<option value="">— aucune —</option>'+list.map(function(a){return '<option value="'+a.id+'">'+a.name+'</option>';}).join('');
     sel.value=m.app||'';
+    var secSel=gid('GPM_rmSec');
+    var secs=(typeof CC_sections!=='undefined')?CC_sections:[{id:'s1',name:'Section 1'}];
+    secSel.innerHTML=secs.map(function(s){return '<option value="'+s.id+'">'+s.name+'</option>';}).join('');
+    secSel.value=m.secId||secs[0].id;
     gid('GPM_rmMemInt').checked=!!m.memInt;
     gid('GPM_rmMemExt').checked=!!m.memExt;
     var hRow=gid('GPM_rmHRow');
@@ -2491,6 +2493,7 @@ CC_injectUI(CC_boot);
     function ok(){
       m.name=gid('GPM_rmName').value.trim();
       m.app=sel.value||'';
+      m.secId=secSel.value;
       m.memInt=gid('GPM_rmMemInt').checked;
       m.memExt=gid('GPM_rmMemExt').checked;
       var hv=gid('GPM_rmH').value;
@@ -2629,6 +2632,7 @@ CC_injectUI(CC_boot);
   function defaultZoneFor(m){
     if(m.geomType==='opening')return 'ouv';
     if(m.geomType==='line')return 'murs';
+    if(m.app==='mur'||m.app==='pignon')return 'murs';
     if(m.app==='grenier'||m.app==='toiture')return 'grenier';
     return 'plafonds';
   }
@@ -2775,6 +2779,16 @@ CC_injectUI(CC_boot);
     });
   }
 
+  // rend un élément déplaçable par une poignée (translate cumulatif)
+  function makeDraggable(box,handle){
+    if(!box||!handle)return;
+    var sx=0,sy=0,ox=0,oy=0,drag=false;
+    handle.addEventListener('mousedown',function(e){drag=true;sx=e.clientX;sy=e.clientY;e.preventDefault();});
+    window.addEventListener('mousemove',function(e){ if(!drag)return; box.style.transform='translate('+(ox+e.clientX-sx)+'px,'+(oy+e.clientY-sy)+'px)'; });
+    window.addEventListener('mouseup',function(e){ if(drag){ox+=e.clientX-sx;oy+=e.clientY-sy;drag=false;} });
+    box._resetDrag=function(){ox=0;oy=0;box.style.transform='';};
+  }
+
   // ═══════════════════════════ Build / open / close ═════════════════════
   function build(){
     if(built)return;
@@ -2795,10 +2809,16 @@ CC_injectUI(CC_boot);
     gid('GPM_closeBtn').onclick=function(){GPM_close();};
     gid('GPM_sendBtn').onclick=function(){openSendPanel();};
     bindStage(); bindKeys();
+    var smBox=el.querySelector('#GPM_scaleModal .gpm-modal');
+    if(smBox)makeDraggable(smBox, smBox.querySelector('h4'));
     built=true;
   }
 
-  window.GPM_open=function(){ build(); el.classList.add('show'); };
+  function syncUnitFromCC(){
+    if(typeof CC_unitSystem!=='undefined'){ setUnit(CC_unitSystem==='mm'?'metric':'imperial'); }
+  }
+
+  window.GPM_open=function(){ build(); syncUnitFromCC(); el.classList.add('show'); };
   window.GPM_close=function(){ if(el)el.classList.remove('show'); };
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
