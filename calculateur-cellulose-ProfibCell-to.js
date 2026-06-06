@@ -468,6 +468,7 @@ function CC_defaultRow(zone){
     r.pente1=6;
     r.l2_pi='';r.l2_po='';r.l2_mm='';
     r.pente2=6;
+    r.surf=''; // surface directe (injection take-off) : utilisée si la géométrie est vide
     r.ep=CC_cfgVal('murs','ep');
     r.dens=CC_cfgVal('murs','dens');
   } else if(zone==='ouv'){
@@ -1090,9 +1091,11 @@ function CC_syncZoneSliders(zone,src){
 function CC_pushZoneHeaderToRows(zone,r,ep){
   var setEp=function(row){var el=CC_gid('CC_ep_'+row.id);if(el&&document.activeElement!==el)el.value=CC_epDispV(ep);};
   if(zone==='grenier'){
-    CC_rows.grenier.forEach(function(row){row.rVal=r;row.ep=ep;});
+    var dg=CC_fldDens('CC_grenierDens')||1.52;
+    CC_rows.grenier.forEach(function(row){row.rVal=r;row.ep=ep;row.dens=dg;});
   } else if(zone==='plafonds'){
-    CC_rows.plafonds.forEach(function(row){row.ht=ep;});
+    var dpl=CC_fldDens('CC_plafondDens')||2.0;
+    CC_rows.plafonds.forEach(function(row){row.ht=ep;row.dens=dpl;});
   } else if(zone==='murs'){
     var dm=CC_fldDens('CC_mursDens')||4.0;
     CC_rows.murs.forEach(function(row){row.ep=ep;row.dens=dm;setEp(row);});
@@ -1304,7 +1307,10 @@ function CC_recalc(){
     else{l1=(CC_pf(row.l1_pi)||0)*12+(CC_pf(row.l1_po)||0);l2=(CC_pf(row.l2_pi)||0)*12+(CC_pf(row.l2_po)||0);}
     l1/=12;l2/=12; // en pieds
     var surf=0,seg=0;
-    if(row.type==='mono'){
+    var directSurf=(!l1&&!l2&&row.surf!==''&&row.surf!=null&&CC_pf(row.surf)>0)?CC_pf(row.surf):0;
+    if(directSurf>0){
+      surf=directSurf; seg=0; // surface injectée (take-off) : pas de segment de pente
+    } else if(row.type==='mono'){
       // Monopente : base = l1, hauteur au faîte h = base * pente/12, triangle = base*h/2
       var h=l1*(p1/12);
       surf=l1*h/2;
@@ -1576,7 +1582,8 @@ function CC_saveLocal(){
     var data={
       v:1,ts:Date.now(),
       proj:{no:CC_gid('CC_projNo')?CC_gid('CC_projNo').value:'',nom:CC_gid('CC_projNom')?CC_gid('CC_projNom').value:'',cli:CC_gid('CC_projCli')?CC_gid('CC_projCli').value:'',ent:CC_gid('CC_projEnt')?CC_gid('CC_projEnt').value:'',adr:CC_gid('CC_projAdr')?CC_gid('CC_projAdr').value:'',ville:CC_gid('CC_projVille')?CC_gid('CC_projVille').value:'',prov:CC_gid('CC_projProv')?CC_gid('CC_projProv').value:'',cp:CC_gid('CC_projCP')?CC_gid('CC_projCP').value:'',notes:CC_gid('CC_projNotes')?CC_gid('CC_projNotes').value:''},
-      rows:CC_rows,sections:CC_sections,buf:CC_getBuf(),unit:CC_unitSystem
+      rows:CC_rows,sections:CC_sections,buf:CC_getBuf(),unit:CC_unitSystem,
+      takeoff:(typeof window!=='undefined'&&window.GPM_serialize)?window.GPM_serialize():null
     };
     localStorage.setItem(CC_SAVE_KEY,JSON.stringify(data));
     CC_updateSaveLabel();
@@ -1616,6 +1623,8 @@ function CC_loadLocal(){
     CC_setUnitSystem('imp',null,true);
     CC_renderSectionsBar();
     CC_renderAllTables();
+    // Mesures sur plan (take-off) : segments/surfaces + échelle par page (sans l'image du plan).
+    if(data.takeoff&&typeof window!=='undefined'&&window.GPM_restore){try{window.GPM_restore(data.takeoff);}catch(e){}}
     CC_updateSaveLabel(data.ts);
     return true;
   }catch(e){console.error('[CC] Load fail',e);return false;}
@@ -2076,6 +2085,7 @@ CC_injectUI(CC_boot);
     unit:'metric', tool:null, drawTool:'line',
     zoom:1, panX:40, panY:40, drawing:null, hover:null,
     areaMode:'poly',            // 'poly' | 'rect' pour l'outil Surface
+    openMode:'rect',            // 'rect' | 'point' pour l'outil Ouverture
     imgW:0, imgH:0,
     pdfDoc:null, imgSrc:null,
     pages:[], cur:0,
@@ -2185,9 +2195,12 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-sendrow select,#GPM_overlay .gpm-sendrow input{padding:5px 7px;font-size:12px;}'+
     '#GPM_overlay .gpm-sendrow .sr-name{font-size:12px;}'+
     '#GPM_overlay .gpm-sendrow .sr-meas{font-size:10px;color:#8896a5;font-family:monospace;}'+
-    '#GPM_overlay #GPM_scaleModal{background:transparent;align-items:flex-start;pointer-events:none;}'+
-    '#GPM_overlay #GPM_scaleModal .gpm-modal{pointer-events:auto;margin-top:64px;box-shadow:0 20px 60px rgba(0,0,0,.7);}'+
-    '#GPM_overlay #GPM_scaleModal h4{cursor:move;user-select:none;}'+
+    '#GPM_overlay #GPM_scaleModal,#GPM_overlay #GPM_roleModal,#GPM_overlay #GPM_openModal{background:transparent;align-items:flex-start;}'+
+    '#GPM_overlay #GPM_scaleModal .gpm-modal,#GPM_overlay #GPM_roleModal .gpm-modal,#GPM_overlay #GPM_openModal .gpm-modal{margin-top:52px;box-shadow:0 20px 60px rgba(0,0,0,.75);}'+
+    '#GPM_overlay #GPM_scaleModal h4,#GPM_overlay #GPM_roleModal h4,#GPM_overlay #GPM_openModal h4{cursor:move;user-select:none;}'+
+    '#GPM_overlay .gpm-modal{position:relative;}'+
+    '#GPM_overlay .gpm-mx{position:absolute;top:8px;right:11px;background:none;border:none;color:#8896a5;font-size:22px;line-height:1;cursor:pointer;padding:0 4px;}'+
+    '#GPM_overlay .gpm-mx:hover{color:#e6edf3;}'+
     '';
     var st=document.createElement('style'); st.id='GPM_style'; st.textContent=css; document.head.appendChild(st);
   }
@@ -2330,6 +2343,10 @@ CC_injectUI(CC_boot);
 
   function renderPageImage(pg){
     return new Promise(function(res){
+      // Page restaurée depuis un JSON (sans image) ou source manquante : canevas vierge.
+      if(pg.restored||(pg.isPdf&&!S.pdfDoc)||(!pg.isPdf&&!pg.src)){
+        var w=pg.imgW||1000,h=pg.imgH||700; planCanvas.width=w; planCanvas.height=h; ctx.clearRect(0,0,w,h); res(); return;
+      }
       if(pg.isPdf){
         S.pdfDoc.getPage(pg.pageNum).then(function(page){
           var vp=page.getViewport({scale:2});
@@ -2382,7 +2399,7 @@ CC_injectUI(CC_boot);
     S.tool=t; S.drawing=null;
     if(t==='line'||t==='area')S.drawTool=t;
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-tool[data-tool]'),function(b){b.classList.toggle('active',b.dataset.tool===t);});
-    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>polygone</b> : clique les sommets, double-clic pour fermer.')+' Touche <b>R</b> bascule rect/polygone.',opening:'Ouverture : trace un <b>rectangle</b> (2 coins).',pan:'Glisse pour déplacer (ou clic-molette).'};
+    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>polygone</b> : clique les sommets, double-clic pour fermer.')+' Touche <b>R</b> bascule rect/polygone.',opening:(S.openMode==='point'?'Ouverture <b>par point</b> : clique l\'emplacement, puis saisis les dimensions.':'Ouverture <b>rectangle</b> : 2 coins opposés.')+' Touche <b>R</b> bascule point/rectangle.',pan:'Glisse pour déplacer (ou clic-molette).'};
     var h=gid('GPM_hint'); h.innerHTML=hints[t]||''; h.classList.toggle('show',!!hints[t]);
     redraw();
   }
@@ -2451,6 +2468,7 @@ CC_injectUI(CC_boot);
   function opReadM(key){ var po=parseFloat((gid('GPM_op'+key+'_po')||{}).value)||0; return po*IN_M; }
   function openOpeningModal(center, owM, ohM){
     var modal=gid('GPM_openModal'), name=gid('GPM_opName'), dims=gid('GPM_opDims'), sec=gid('GPM_opSec');
+    var opBox=modal.querySelector('.gpm-modal'); if(opBox&&opBox._resetDrag)opBox._resetDrag();
     name.value='';
     dims.innerHTML=opDimRow('Largeur','W',owM)+opDimRow('Hauteur','H',ohM);
     var secs=(typeof CC_sections!=='undefined')?CC_sections:[{id:'s1',name:'Section 1'}];
@@ -2472,6 +2490,7 @@ CC_injectUI(CC_boot);
   // ═══════════════════════════ Modale nom/rôle ══════════════════════════
   function openRoleModal(m,isNew){
     var modal=gid('GPM_roleModal');
+    var rmBox=modal.querySelector('.gpm-modal'); if(rmBox&&rmBox._resetDrag)rmBox._resetDrag();
     gid('GPM_rmTitle').textContent=isNew?'Nouvelle mesure':'Modifier la mesure';
     gid('GPM_rmGeom').textContent=m.geomType==='area'?('Surface · '+fmtArea(m.areaM2)+(m.rect?' (rectangle)':' (polygone)')):('Ligne · '+fmtLen(m.lengthM));
     gid('GPM_rmName').value=m.name||'';
@@ -2632,14 +2651,15 @@ CC_injectUI(CC_boot);
   function defaultZoneFor(m){
     if(m.geomType==='opening')return 'ouv';
     if(m.geomType==='line')return 'murs';
-    if(m.app==='mur'||m.app==='pignon')return 'murs';
+    if(m.app==='pignon')return 'pig';
+    if(m.app==='mur')return 'murs';
     if(m.app==='grenier'||m.app==='toiture')return 'grenier';
     return 'plafonds';
   }
   function zoneOptionsFor(m){
     if(m.geomType==='opening')return [['ouv','Ouvertures']];
     if(m.geomType==='line')return [['murs','Murs'],['ignore','(ignorer)']];
-    return [['plafonds','Plafond-plancher'],['grenier','Grenier'],['murs','Murs (surface)'],['ignore','(ignorer)']];
+    return [['plafonds','Plafond-plancher'],['grenier','Grenier'],['murs','Murs (surface)'],['pig','Pignon'],['ignore','(ignorer)']];
   }
 
   function openSendPanel(){
@@ -2708,6 +2728,9 @@ CC_injectUI(CC_boot);
         if(zone==='murs'){
           var rmu=CC_defaultRow('murs'); rmu.secId=sp.secId; rmu.label=lbl; rmu.surf=String(Math.round(m.areaM2*M2_FT2*10)/10);
           CC_rows.murs.push(rmu); touched.murs=1; count++;
+        } else if(zone==='pig'){
+          var rpg=CC_defaultRow('pig'); rpg.secId=sp.secId; rpg.label=lbl; rpg.surf=String(Math.round(m.areaM2*M2_FT2*10)/10);
+          CC_rows.pig.push(rpg); touched.pig=1; count++;
         } else { // grenier / plafonds
           var rr=CC_defaultRow(zone); rr.secId=sp.secId; rr.label=lbl;
           if(m.rect){ setDim(rr,'l',m.rectWM); setDim(rr,'w',m.rectHM); }
@@ -2735,6 +2758,9 @@ CC_injectUI(CC_boot);
     },{passive:false});
     stage.addEventListener('mousedown',function(e){
       if(!S.imgW)return;
+      // Ignore les clics sur les contrôles superposés (zoom +/-, barre de pages, boutons),
+      // sinon un clic sur « + » placerait un point d'échelle dans le plan.
+      if(e.target.closest&&(e.target.closest('.gpm-zoom')||e.target.closest('.gpm-pagebar')||e.target.closest('.gpm-hintbar')||e.target.tagName==='BUTTON'))return;
       if(e.button===1){e.preventDefault();midPan=true;panning={x:e.clientX-S.panX,y:e.clientY-S.panY};return;}
       if(S.tool==='pan'){panning={x:e.clientX-S.panX,y:e.clientY-S.panY};return;}
       var p=toImg(e);
@@ -2748,6 +2774,7 @@ CC_injectUI(CC_boot);
       }
       if(S.tool==='opening'){
         if(!S.scalePxPerM){alert('Cale d\'abord l\'échelle.');return;}
+        if(S.openMode==='point'){ S.drawing=null; openOpeningModal(p, 0, 0); redraw(); return; }
         if(!S.drawing)S.drawing={geom:'opening',pts:[p]}; else {S.drawing.pts.push(p);finishOpening();}
         redraw(); return;
       }
@@ -2771,6 +2798,7 @@ CC_injectUI(CC_boot);
       if((e.key==='Backspace'||e.key==='Delete')&&S.selId!=null&&!inField){e.preventDefault();deleteMeasure(S.selId);return;}
       if(e.key==='Enter'&&S.drawing&&(S.tool==='line'||(S.tool==='area'&&S.areaMode==='poly')))finishMeasure();
       if((e.key==='r'||e.key==='R')&&S.tool==='area'&&!inField){ S.areaMode=S.areaMode==='rect'?'poly':'rect'; S.drawing=null; setTool('area'); }
+      if((e.key==='r'||e.key==='R')&&S.tool==='opening'&&!inField){ S.openMode=S.openMode==='rect'?'point':'rect'; S.drawing=null; setTool('opening'); }
       if(e.key==='Escape'){
         var om=el.querySelector('.gpm-modal-bg.show'); if(om){om.classList.remove('show');S.drawing=null;redraw();return;}
         if(S.drawing){S.drawing=null;redraw();return;}
@@ -2809,8 +2837,16 @@ CC_injectUI(CC_boot);
     gid('GPM_closeBtn').onclick=function(){GPM_close();};
     gid('GPM_sendBtn').onclick=function(){openSendPanel();};
     bindStage(); bindKeys();
-    var smBox=el.querySelector('#GPM_scaleModal .gpm-modal');
-    if(smBox)makeDraggable(smBox, smBox.querySelector('h4'));
+    ['GPM_scaleModal','GPM_roleModal','GPM_openModal'].forEach(function(id){
+      var box=el.querySelector('#'+id+' .gpm-modal'); if(box)makeDraggable(box, box.querySelector('h4'));
+    });
+    // Bouton × de fermeture sur chaque modale (+ Échap géré globalement)
+    Array.prototype.forEach.call(el.querySelectorAll('.gpm-modal-bg .gpm-modal'),function(box){
+      if(box.querySelector('.gpm-mx'))return;
+      var x=document.createElement('button'); x.type='button'; x.className='gpm-mx'; x.title='Fermer (Échap)'; x.textContent='\u00d7';
+      box.appendChild(x);
+      x.onclick=function(){ var bg=box.closest('.gpm-modal-bg'); if(bg)bg.classList.remove('show'); S.drawing=null; redraw(); renderItems(); };
+    });
     built=true;
   }
 
@@ -2818,11 +2854,33 @@ CC_injectUI(CC_boot);
     if(typeof CC_unitSystem!=='undefined'){ setUnit(CC_unitSystem==='mm'?'metric':'imperial'); }
   }
 
-  window.GPM_open=function(){ build(); syncUnitFromCC(); el.classList.add('show'); };
+  window.GPM_open=function(){ build(); syncUnitFromCC(); el.classList.add('show');
+    if(S.pages.length){ var em=gid('GPM_empty'); if(em)em.style.display='none'; var zc=gid('GPM_zoomctl'); if(zc)zc.style.display='flex'; showPage(S.cur); renderPageTabs(); }
+  };
+
+  // Sérialise les mesures sur plan (segments/surfaces + échelle par page) pour le JSON.
+  // N'inclut PAS l'image du plan (PDF/JPG) — seulement les données de mesure.
+  window.GPM_serialize=function(){
+    try{
+      return { cur:S.cur, pages:(S.pages||[]).map(function(p){
+        return { name:p.name, scalePxPerM:p.scalePxPerM, imgW:p.imgW, imgH:p.imgH, isPdf:!!p.isPdf, pageNum:p.pageNum,
+          measures:(p.measures||[]).map(function(m){return Object.assign({},m);}) };
+      }) };
+    }catch(e){return null;}
+  };
+  window.GPM_restore=function(obj){
+    if(!obj||!Array.isArray(obj.pages))return;
+    S.pages=obj.pages.map(function(p){
+      return { name:p.name||'Plan', scalePxPerM:p.scalePxPerM||null, imgW:p.imgW||1000, imgH:p.imgH||700,
+        isPdf:!!p.isPdf, pageNum:p.pageNum||1, measures:Array.isArray(p.measures)?p.measures:[], restored:true };
+    });
+    S.cur=Math.max(0,Math.min(obj.cur||0,S.pages.length-1));
+    if(built&&S.pages.length){ S.pdfDoc=null; var em=gid('GPM_empty'); if(em)em.style.display='none'; var zc=gid('GPM_zoomctl'); if(zc)zc.style.display='flex'; showPage(S.cur); renderPageTabs(); }
+  };
   window.GPM_close=function(){ if(el)el.classList.remove('show'); };
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool };
   }
 })();
