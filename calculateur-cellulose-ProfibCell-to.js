@@ -2066,7 +2066,7 @@ CC_injectUI(CC_boot);
     area:[
       {id:'plancher', name:'Surface de plancher', color:'#fb923c'},
       {id:'plafond',  name:'Surface de plafond',  color:'#a78bfa'},
-      {id:'grenier',  name:'Surface de grenier',  color:'#facc15'},
+      {id:'grenier',  name:'Entretoit',           color:'#facc15'},
       {id:'toiture',  name:'Toiture (pan)',       color:'#f472b6'},
       {id:'dalle',    name:'Dalle',               color:'#fcd34d'},
       {id:'mur',      name:'Mur (surface)',       color:'#60a5fa'},
@@ -2087,6 +2087,7 @@ CC_injectUI(CC_boot);
     zoom:1, panX:40, panY:40, drawing:null, hover:null,
     areaMode:'poly',            // 'poly' | 'rect' pour l'outil Surface
     openMode:'rect',            // 'rect' | 'point' pour l'outil Ouverture
+    lastOpenDims:null,          // dernières dims d'ouverture (saisie en série)
     imgW:0, imgH:0,
     pdfDoc:null, imgSrc:null,
     pages:[], cur:0,
@@ -2275,7 +2276,7 @@ CC_injectUI(CC_boot);
       '<label>Nom (optionnel)</label><input type="text" id="GPM_opName" placeholder="F101">'+
       '<div id="GPM_opDims"></div>'+
       '<label>Section</label><div id="GPM_opSecs" class="gpm-chkgrp"></div>'+
-      '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_opCancel">Annuler</button><button class="gpm-ok" id="GPM_opOk">Enregistrer</button></div>'+
+      '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_opCancel">Annuler</button><button class="gpm-cancel" id="GPM_opOkNew">Enreg. + nouveau</button><button class="gpm-ok" id="GPM_opOk">Enregistrer</button></div>'+
     '</div></div>'+
     // modale nom/rôle (après tracé ligne/surface)
     '<div class="gpm-modal-bg" id="GPM_roleModal"><div class="gpm-modal">'+
@@ -2478,18 +2479,21 @@ CC_injectUI(CC_boot);
     var secItems=ccSecItems();
     fillChkGroup(secsBox, secItems, [secItems[0].id]);
     modal.classList.add('show'); setTimeout(function(){name.focus();},30);
-    function ok(){
+    function doSave(){
       var W=opReadM('W'), H=opReadM('H');
-      if(!(W>0&&H>0)){ dims.style.outline='1px solid #f87171'; return; }
+      if(!(W>0&&H>0)){ dims.style.outline='1px solid #f87171'; return null; }
       var sids=readChkGroup(secsBox); if(!sids.length)sids=[secItems[0].id];
       var m={id:idc++,geomType:'opening',pts:[center],name:name.value.trim(),owM:W,ohM:H,secIds:sids,sent:false};
-      S.measures.push(m); S.selId=m.id;
-      modal.classList.remove('show'); cleanup(); renderItems(); redraw(); renderPageTabs();
+      S.measures.push(m); S.selId=m.id; S.lastOpenDims={W:W,H:H};
+      renderItems(); redraw(); renderPageTabs();
+      return {W:W,H:H};
     }
+    function ok(){ var r=doSave(); if(r){ modal.classList.remove('show'); cleanup(); } }
+    function okNew(){ var r=doSave(); if(r){ cleanup(); openOpeningModal(center, r.W, r.H); } }
     function cancel(){modal.classList.remove('show');cleanup();S.drawing=null;redraw();}
     function onKey(e){if(e.key==='Enter')ok();if(e.key==='Escape')cancel();}
-    function cleanup(){gid('GPM_opOk').onclick=null;gid('GPM_opCancel').onclick=null;dims.style.outline='';modal.removeEventListener('keydown',onKey);}
-    gid('GPM_opOk').onclick=ok; gid('GPM_opCancel').onclick=cancel; modal.addEventListener('keydown',onKey);
+    function cleanup(){gid('GPM_opOk').onclick=null;gid('GPM_opOkNew').onclick=null;gid('GPM_opCancel').onclick=null;dims.style.outline='';modal.removeEventListener('keydown',onKey);}
+    gid('GPM_opOk').onclick=ok; gid('GPM_opOkNew').onclick=okNew; gid('GPM_opCancel').onclick=cancel; modal.addEventListener('keydown',onKey);
   }
 
   // ═══════════════════════════ Modale nom/rôle ══════════════════════════
@@ -2618,9 +2622,11 @@ CC_injectUI(CC_boot);
       d.innerHTML='<div class="gpm-dot" style="background:'+col+'"></div>'+
         '<div class="gpm-ib"><div class="gpm-iname">'+nameTxt+'</div><div class="gpm-imeas">'+geomTxt+'</div>'+tags+'</div>'+
         '<button class="gpm-idel gpm-iedit" title="Éditer" style="font-size:13px">✎</button>'+
-        '<button class="gpm-idel" title="Supprimer">×</button>';
+        '<button class="gpm-idel gpm-idup" title="Dupliquer" style="font-size:13px">⧉</button>'+
+        '<button class="gpm-idel gpm-idelbtn" title="Supprimer">×</button>';
       d.querySelector('.gpm-iedit').onclick=function(ev){ev.stopPropagation(); if(m.geomType==='opening')editOpening(m); else openRoleModal(m,false);};
-      d.querySelectorAll('.gpm-idel')[1].onclick=function(ev){ev.stopPropagation();deleteMeasure(m.id);};
+      d.querySelector('.gpm-idup').onclick=function(ev){ev.stopPropagation();duplicateMeasure(m.id);};
+      d.querySelector('.gpm-idelbtn').onclick=function(ev){ev.stopPropagation();deleteMeasure(m.id);};
       d.onclick=function(){S.selId=S.selId===m.id?null:m.id;renderItems();redraw();};
       box.appendChild(d);
     });
@@ -2640,6 +2646,16 @@ CC_injectUI(CC_boot);
     S.measures=S.measures.filter(function(x){return x.id!==id;}); S.pages[S.cur].measures=S.measures;
     if(S.selId===id)S.selId=null;
     renderItems(); redraw(); renderPageTabs();
+  }
+  function duplicateMeasure(id){
+    var src=S.measures.find(function(x){return x.id===id;}); if(!src)return;
+    var c=JSON.parse(JSON.stringify(src));
+    c.id=idc++; c.sent=false;
+    c.name=(src.name?src.name:(src.geomType==='opening'?'Ouverture':src.geomType==='area'?'Surface':'Ligne'))+' (copie)';
+    // décale légèrement les points pour rendre la copie visible
+    if(Array.isArray(c.pts))c.pts=c.pts.map(function(p){return {x:p.x+14,y:p.y+14};});
+    S.measures.push(c); S.selId=c.id;
+    renderItems(); redraw();
   }
 
   // ═══════════════════════════ Unités ═══════════════════════════════════
@@ -2801,6 +2817,7 @@ CC_injectUI(CC_boot);
       if(S.tool==='pan'){panning={x:e.clientX-S.panX,y:e.clientY-S.panY};return;}
       var p=toImg(e);
       if(p.x<0||p.x>S.imgW||p.y<0||p.y>S.imgH)return;
+      if((S.tool==='line'||S.tool==='area')&&!S.scalePxPerM){ alert('Cale d\'abord l\'échelle.'); setTool('scale'); return; }
       if(S.tool==='scale'){ if(!S.drawing)S.drawing={pts:[p]}; else {S.drawing.pts.push(p);finishScale();} redraw(); return; }
       if(S.tool==='line'){ if(!S.drawing)S.drawing={geom:'line',pts:[p]}; else S.drawing.pts.push(p); redraw(); return; }
       if(S.tool==='area'){
@@ -2810,7 +2827,7 @@ CC_injectUI(CC_boot);
       }
       if(S.tool==='opening'){
         if(!S.scalePxPerM){alert('Cale d\'abord l\'échelle.');return;}
-        if(S.openMode==='point'){ S.drawing=null; openOpeningModal(p, 0, 0); redraw(); return; }
+        if(S.openMode==='point'){ S.drawing=null; openOpeningModal(p, S.lastOpenDims?S.lastOpenDims.W:0, S.lastOpenDims?S.lastOpenDims.H:0); redraw(); return; }
         if(!S.drawing)S.drawing={geom:'opening',pts:[p]}; else {S.drawing.pts.push(p);finishOpening();}
         redraw(); return;
       }
@@ -2917,6 +2934,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure };
   }
 })();
