@@ -2070,7 +2070,8 @@ CC_injectUI(CC_boot);
       {id:'toiture',  name:'Toiture (pan)',       color:'#f472b6'},
       {id:'dalle',    name:'Dalle',               color:'#fcd34d'},
       {id:'mur',      name:'Mur (surface)',       color:'#60a5fa'},
-      {id:'pignon',   name:'Pignon',              color:'#fca5a5'}
+      {id:'pignon',   name:'Pignon',              color:'#fca5a5'},
+      {id:'perimetre',name:'Périmètre → murs',    color:'#4ade80'}
     ]
   };
   var APP_BY_ID={}; Object.keys(APPS).forEach(function(g){APPS[g].forEach(function(a){APP_BY_ID[a.id]=a;});});
@@ -2201,6 +2202,9 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-modal{position:relative;}'+
     '#GPM_overlay .gpm-mx{position:absolute;top:8px;right:11px;background:none;border:none;color:#8896a5;font-size:22px;line-height:1;cursor:pointer;padding:0 4px;}'+
     '#GPM_overlay .gpm-mx:hover{color:#e6edf3;}'+
+    '#GPM_overlay .gpm-chkgrp{display:flex;flex-direction:column;gap:5px;margin:0 0 4px;}'+
+    '#GPM_overlay .gpm-chkgrp label{display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0;cursor:pointer;}'+
+    '#GPM_overlay .gpm-chkgrp input{width:auto;}'+
     '';
     var st=document.createElement('style'); st.id='GPM_style'; st.textContent=css; document.head.appendChild(st);
   }
@@ -2270,7 +2274,7 @@ CC_injectUI(CC_boot);
       '<h4>Ouverture</h4>'+
       '<label>Nom (optionnel)</label><input type="text" id="GPM_opName" placeholder="F101">'+
       '<div id="GPM_opDims"></div>'+
-      '<label>Section</label><select id="GPM_opSec"></select>'+
+      '<label>Section</label><div id="GPM_opSecs" class="gpm-chkgrp"></div>'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_opCancel">Annuler</button><button class="gpm-ok" id="GPM_opOk">Enregistrer</button></div>'+
     '</div></div>'+
     // modale nom/rôle (après tracé ligne/surface)
@@ -2278,8 +2282,8 @@ CC_injectUI(CC_boot);
       '<h4 id="GPM_rmTitle">Mesure</h4>'+
       '<div style="font-family:monospace;font-size:12px;color:#4ade80;margin-bottom:8px" id="GPM_rmGeom"></div>'+
       '<label>Nom (optionnel)</label><input type="text" id="GPM_rmName" placeholder="ex. Mur nord">'+
-      '<label>Application</label><select id="GPM_rmApp"></select>'+
-      '<label>Section</label><select id="GPM_rmSec"></select>'+
+      '<label>Application</label><div id="GPM_rmApps" class="gpm-chkgrp"></div>'+
+      '<label>Section</label><div id="GPM_rmSecs" class="gpm-chkgrp"></div>'+
       '<label>Membranes</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0 0 6px"><input type="checkbox" id="GPM_rmMemInt" style="width:auto"> Membrane intérieure</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0"><input type="checkbox" id="GPM_rmMemExt" style="width:auto"> Membrane extérieure</label>'+
@@ -2437,7 +2441,7 @@ CC_injectUI(CC_boot);
     var d=S.drawing;
     if(d.geom==='line'&&d.pts.length<2){S.drawing=null;redraw();return;}
     if(d.geom==='area'&&d.pts.length<3){S.drawing=null;redraw();return;}
-    var m={id:idc++,geomType:d.geom,pts:d.pts,name:'',app:'',memInt:false,memExt:false,height:null,rect:false,sent:false};
+    var m={id:idc++,geomType:d.geom,pts:d.pts,name:'',apps:[],secIds:[],memInt:false,memExt:false,height:null,rect:false,sent:false};
     if(d.geom==='line')m.lengthM=lineLenM(d.pts); else m.areaM2=areaM2(d.pts);
     S.measures.push(m); S.selId=m.id; S.drawing=null;
     redraw(); renderItems(); renderPageTabs();
@@ -2447,7 +2451,7 @@ CC_injectUI(CC_boot);
     var d=S.drawing, a=d.pts[0], b=d.pts[1];
     var x0=Math.min(a.x,b.x),y0=Math.min(a.y,b.y),x1=Math.max(a.x,b.x),y1=Math.max(a.y,b.y);
     var pts=[{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
-    var m={id:idc++,geomType:'area',pts:pts,name:'',app:'',memInt:false,memExt:false,height:null,rect:true,sent:false,
+    var m={id:idc++,geomType:'area',pts:pts,name:'',apps:[],secIds:[],memInt:false,memExt:false,height:null,rect:true,sent:false,
       rectWM:Math.abs(b.x-a.x)/S.scalePxPerM, rectHM:Math.abs(b.y-a.y)/S.scalePxPerM, areaM2:areaM2(pts)};
     S.measures.push(m); S.selId=m.id; S.drawing=null;
     redraw(); renderItems(); renderPageTabs(); openRoleModal(m,true);
@@ -2467,17 +2471,18 @@ CC_injectUI(CC_boot);
   }
   function opReadM(key){ var po=parseFloat((gid('GPM_op'+key+'_po')||{}).value)||0; return po*IN_M; }
   function openOpeningModal(center, owM, ohM){
-    var modal=gid('GPM_openModal'), name=gid('GPM_opName'), dims=gid('GPM_opDims'), sec=gid('GPM_opSec');
+    var modal=gid('GPM_openModal'), name=gid('GPM_opName'), dims=gid('GPM_opDims'), secsBox=gid('GPM_opSecs');
     var opBox=modal.querySelector('.gpm-modal'); if(opBox&&opBox._resetDrag)opBox._resetDrag();
     name.value='';
     dims.innerHTML=opDimRow('Largeur','W',owM)+opDimRow('Hauteur','H',ohM);
-    var secs=(typeof CC_sections!=='undefined')?CC_sections:[{id:'s1',name:'Section 1'}];
-    sec.innerHTML=secs.map(function(s){return '<option value="'+s.id+'">'+s.name+'</option>';}).join('');
+    var secItems=ccSecItems();
+    fillChkGroup(secsBox, secItems, [secItems[0].id]);
     modal.classList.add('show'); setTimeout(function(){name.focus();},30);
     function ok(){
       var W=opReadM('W'), H=opReadM('H');
       if(!(W>0&&H>0)){ dims.style.outline='1px solid #f87171'; return; }
-      var m={id:idc++,geomType:'opening',pts:[center],name:name.value.trim(),owM:W,ohM:H,secId:sec.value,sent:false};
+      var sids=readChkGroup(secsBox); if(!sids.length)sids=[secItems[0].id];
+      var m={id:idc++,geomType:'opening',pts:[center],name:name.value.trim(),owM:W,ohM:H,secIds:sids,sent:false};
       S.measures.push(m); S.selId=m.id;
       modal.classList.remove('show'); cleanup(); renderItems(); redraw(); renderPageTabs();
     }
@@ -2494,39 +2499,52 @@ CC_injectUI(CC_boot);
     gid('GPM_rmTitle').textContent=isNew?'Nouvelle mesure':'Modifier la mesure';
     gid('GPM_rmGeom').textContent=m.geomType==='area'?('Surface · '+fmtArea(m.areaM2)+(m.rect?' (rectangle)':' (polygone)')):('Ligne · '+fmtLen(m.lengthM));
     gid('GPM_rmName').value=m.name||'';
-    var sel=gid('GPM_rmApp');
-    var list=APPS[m.geomType]||[];
-    sel.innerHTML='<option value="">— aucune —</option>'+list.map(function(a){return '<option value="'+a.id+'">'+a.name+'</option>';}).join('');
-    sel.value=m.app||'';
-    var secSel=gid('GPM_rmSec');
-    var secs=(typeof CC_sections!=='undefined')?CC_sections:[{id:'s1',name:'Section 1'}];
-    secSel.innerHTML=secs.map(function(s){return '<option value="'+s.id+'">'+s.name+'</option>';}).join('');
-    secSel.value=m.secId||secs[0].id;
+    var appsBox=gid('GPM_rmApps'), secsBox=gid('GPM_rmSecs');
+    fillChkGroup(appsBox, APPS[m.geomType]||[], m.apps||[]);
+    var secItems=ccSecItems();
+    fillChkGroup(secsBox, secItems, (m.secIds&&m.secIds.length)?m.secIds:[secItems[0].id]);
     gid('GPM_rmMemInt').checked=!!m.memInt;
     gid('GPM_rmMemExt').checked=!!m.memExt;
     var hRow=gid('GPM_rmHRow');
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-ou'),function(s){s.textContent=lenUnit();});
-    hRow.style.display=m.geomType==='line'?'block':'none';
+    function updH(){
+      var ap=readChkGroup(appsBox);
+      var showH=(m.geomType==='line')||(m.geomType==='area'&&ap.indexOf('perimetre')>=0);
+      hRow.style.display=showH?'block':'none';
+    }
+    appsBox.onchange=updH; updH();
     gid('GPM_rmH').value=m.height!=null?lenVal(m.height).toFixed(2):'';
     modal.classList.add('show'); setTimeout(function(){gid('GPM_rmName').focus();},30);
     function ok(){
       m.name=gid('GPM_rmName').value.trim();
-      m.app=sel.value||'';
-      m.secId=secSel.value;
+      m.apps=readChkGroup(appsBox);
+      m.secIds=readChkGroup(secsBox);
       m.memInt=gid('GPM_rmMemInt').checked;
       m.memExt=gid('GPM_rmMemExt').checked;
       var hv=gid('GPM_rmH').value;
-      m.height=(m.geomType==='line'&&hv&&parseFloat(hv)>0)?(S.unit==='metric'?parseFloat(hv):parseFloat(hv)*FT_M):null;
+      m.height=(hv&&parseFloat(hv)>0)?(S.unit==='metric'?parseFloat(hv):parseFloat(hv)*FT_M):null;
       modal.classList.remove('show'); cleanup(); renderItems(); redraw();
     }
     function cancel(){modal.classList.remove('show');cleanup();renderItems();redraw();}
     function onKey(e){if(e.key==='Escape')cancel();}
-    function cleanup(){gid('GPM_rmOk').onclick=null;gid('GPM_rmCancel').onclick=null;modal.removeEventListener('keydown',onKey);}
+    function cleanup(){gid('GPM_rmOk').onclick=null;gid('GPM_rmCancel').onclick=null;appsBox.onchange=null;modal.removeEventListener('keydown',onKey);}
     gid('GPM_rmOk').onclick=ok; gid('GPM_rmCancel').onclick=cancel; modal.addEventListener('keydown',onKey);
   }
 
   // ═══════════════════════════ Rendu SVG ════════════════════════════════
-  function measColor(m){ if(m.app&&APP_BY_ID[m.app])return APP_BY_ID[m.app].color; return m.geomType==='opening'?'#2dd4bf':'#64748b'; }
+  function measColor(m){ var a=(m.apps&&m.apps[0]); if(a&&APP_BY_ID[a])return APP_BY_ID[a].color; return m.geomType==='opening'?'#2dd4bf':'#64748b'; }
+  // Groupes de cases à cocher (application, section)
+  function fillChkGroup(container, items, checkedIds){
+    container.innerHTML=items.map(function(it){
+      var ck=(checkedIds||[]).indexOf(it.id)>=0?' checked':'';
+      return '<label><input type="checkbox" value="'+it.id+'"'+ck+'> '+it.name+'</label>';
+    }).join('');
+  }
+  function readChkGroup(container){
+    return Array.prototype.slice.call(container.querySelectorAll('input:checked')).map(function(i){return i.value;});
+  }
+  function ccSecItems(){ var s=(typeof CC_sections!=='undefined')?CC_sections:[{id:'s1',name:'Section 1'}]; return s.map(function(x){return {id:x.id,name:x.name};}); }
+  function secName(id){ var s=(typeof CC_sections!=='undefined')?CC_sections:[]; for(var i=0;i<s.length;i++)if(s[i].id===id)return s[i].name; return id; }
   function measLabel(m){
     var pre=m.name?m.name+' · ':'';
     if(m.geomType==='opening')return (m.name||'Ouv.')+' '+lenVal(m.owM).toFixed(2)+'×'+lenVal(m.ohM).toFixed(2);
@@ -2585,12 +2603,16 @@ CC_injectUI(CC_boot);
       if(m.geomType==='line'){var nseg=m.pts.length-1; geomTxt+=' · '+nseg+' seg.';}
       var tags='';
       if(m.geomType!=='opening'){
-        var appName=m.app&&APP_BY_ID[m.app]?APP_BY_ID[m.app].name:'(aucune application)';
+        var appNames=(m.apps||[]).map(function(id){return APP_BY_ID[id]?APP_BY_ID[id].name:id;});
         var memb=membraneTag(m);
-        tags='<div class="gpm-irole" style="display:flex;flex-wrap:wrap;gap:4px;font-family:inherit">'+
-          '<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:#222c38;border:1px solid #2e3a48;color:#8896a5">'+appName+'</span>'+
-          (memb?'<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:#222c38;border:1px solid #2e3a48;color:#38bdf8">'+memb+'</span>':'')+'</div>';
+        var chips=[];
+        if(appNames.length)appNames.forEach(function(nm){chips.push('<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:#222c38;border:1px solid #2e3a48;color:#8896a5">'+nm+'</span>');});
+        else chips.push('<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:#3a2330;border:1px solid #5b2d3d;color:#fca5a5">aucune application</span>');
+        if(memb)chips.push('<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:#222c38;border:1px solid #2e3a48;color:#38bdf8">'+memb+'</span>');
+        tags='<div class="gpm-irole" style="display:flex;flex-wrap:wrap;gap:4px;font-family:inherit">'+chips.join('')+'</div>';
       }
+      var sids=(m.secIds&&m.secIds.length)?m.secIds:(m.secId?[m.secId]:[]);
+      if(sids.length)tags+='<div style="font-size:10px;color:#8896a5;margin-top:3px">'+sids.map(secName).join(' · ')+'</div>';
       if(m.sent)tags+='<div style="font-size:10px;color:#4ade80;margin-top:3px">✓ déjà envoyée</div>';
       var d=document.createElement('div'); d.className='gpm-item'+(S.selId===m.id?' sel':'');
       d.innerHTML='<div class="gpm-dot" style="background:'+col+'"></div>'+
@@ -2606,10 +2628,10 @@ CC_injectUI(CC_boot);
   // ré-édition d'une ouverture (nom + dims + section)
   function editOpening(m){
     openOpeningModal(m.pts[0], m.owM, m.ohM);
-    // pré-remplir nom + section après ouverture
-    var name=gid('GPM_opName'), sec=gid('GPM_opSec');
+    // pré-remplir nom + sections après ouverture
+    var name=gid('GPM_opName'), secsBox=gid('GPM_opSecs');
     if(name)name.value=m.name||'';
-    if(sec&&m.secId)sec.value=m.secId;
+    if(secsBox)fillChkGroup(secsBox, ccSecItems(), (m.secIds&&m.secIds.length)?m.secIds:(m.secId?[m.secId]:[]));
     // l'enregistrement crée une NOUVELLE ouverture ; on retire l'ancienne au prochain OK
     var okBtn=gid('GPM_opOk'); var prev=okBtn.onclick;
     okBtn.onclick=function(){ deleteMeasure(m.id); prev(); };
@@ -2651,9 +2673,10 @@ CC_injectUI(CC_boot);
   function defaultZoneFor(m){
     if(m.geomType==='opening')return 'ouv';
     if(m.geomType==='line')return 'murs';
-    if(m.app==='pignon')return 'pig';
-    if(m.app==='mur')return 'murs';
-    if(m.app==='grenier'||m.app==='toiture')return 'grenier';
+    var a=(m.apps&&m.apps[0])||m.app;
+    if(a==='pignon')return 'pig';
+    if(a==='mur')return 'murs';
+    if(a==='grenier'||a==='toiture')return 'grenier';
     return 'plafonds';
   }
   function zoneOptionsFor(m){
@@ -2666,79 +2689,92 @@ CC_injectUI(CC_boot);
     var anyScale=S.pages.some(function(pg){return pg.scalePxPerM;});
     if(!anyScale){ alert('Cale d\'abord l\'échelle.'); return; }
     if(!allMeasures().length){ alert('Aucune mesure à envoyer.'); return; }
-    var secs=(typeof CC_sections!=='undefined')?CC_sections:[{id:'s1',name:'Section 1'}];
     var modal=gid('GPM_sendModal'), body=gid('GPM_sendBody'), showSent=gid('GPM_sendShowSent');
+    function summary(m){
+      if(m.geomType==='opening')return 'Ouverture → Ouvertures';
+      var apps=(m.apps||[]).map(function(id){return APP_BY_ID[id]?APP_BY_ID[id].name:id;});
+      return apps.length?apps.join(', '):'<span style="color:#fca5a5">aucune application</span>';
+    }
     function render(){
       var ms=allMeasures().filter(function(m){return showSent.checked?true:!m.sent;});
       if(!ms.length){ body.innerHTML='<div style="color:#8896a5;font-size:12px;padding:8px 0">Aucune mesure non envoyée. Coche « afficher les déjà envoyées » pour renvoyer.</div>'; return; }
-      var secOpts=function(selId){return secs.map(function(s){return '<option value="'+s.id+'"'+(s.id===selId?' selected':'')+'>'+s.name+'</option>';}).join('');};
-      var html='';
-      ms.forEach(function(m){
+      body.innerHTML=ms.map(function(m){
         var meas=m.geomType==='opening'?(lenVal(m.owM).toFixed(2)+'×'+lenVal(m.ohM).toFixed(2)):(m.geomType==='area'?fmtArea(m.areaM2):(fmtLen(m.lengthM)+' · '+(m.pts.length-1)+' seg.'));
-        var zopts=zoneOptionsFor(m).map(function(z){return '<option value="'+z[0]+'"'+(z[0]===defaultZoneFor(m)?' selected':'')+'>'+z[1]+'</option>';}).join('');
-        var defSec=m.secId||secs[0].id;
-        html+='<div class="gpm-sendrow" data-mid="'+m.id+'">'+
-          '<div><div class="sr-name">'+(m.name||(m.geomType==='area'?'Surface':m.geomType==='opening'?'Ouverture':'Ligne'))+(m.sent?' <span style="color:#4ade80">✓</span>':'')+'</div><div class="sr-meas">'+meas+'</div></div>'+
-          '<select class="sr-zone">'+zopts+'</select>'+
-          '<select class="sr-sec">'+secOpts(defSec)+'</select>'+
+        var sids=(m.secIds&&m.secIds.length)?m.secIds:(m.secId?[m.secId]:[]);
+        var secTxt=sids.length?sids.map(secName).join(' · '):'(section par défaut)';
+        return '<div class="gpm-sendrow" data-mid="'+m.id+'" style="display:block">'+
+          '<div class="sr-name">'+(m.name||(m.geomType==='area'?'Surface':m.geomType==='opening'?'Ouverture':'Ligne'))+(m.sent?' <span style="color:#4ade80">✓</span>':'')+'</div>'+
+          '<div class="sr-meas">'+meas+' → '+summary(m)+'  ·  '+secTxt+'</div>'+
         '</div>';
-      });
-      body.innerHTML=html;
+      }).join('');
     }
     showSent.checked=false; showSent.onchange=render; render();
     modal.classList.add('show');
     gid('GPM_sendCancel').onclick=function(){modal.classList.remove('show');};
     gid('GPM_sendOk').onclick=function(){
-      var all=allMeasures(), specs=[];
-      Array.prototype.forEach.call(body.querySelectorAll('.gpm-sendrow'),function(rowEl){
-        var mid=parseInt(rowEl.getAttribute('data-mid'),10);
-        var m=all.find(function(x){return x.id===mid;}); if(!m)return;
-        specs.push({m:m, zone:rowEl.querySelector('.sr-zone').value, secId:rowEl.querySelector('.sr-sec').value});
-      });
-      var n=injectToCalculateur(specs);
+      var all=allMeasures();
+      var toSend=all.filter(function(m){return showSent.checked?true:!m.sent;});
+      var n=injectToCalculateur(toSend);
       modal.classList.remove('show');
       if(n>0){ GPM_close(); }
     };
   }
 
   // Injection réelle dans CC_rows. Retourne le nombre de lignes créées.
-  function injectToCalculateur(specs){
+  function injectToCalculateur(measures){
     if(typeof CC_rows==='undefined'||typeof CC_defaultRow!=='function'){ alert('Calculateur introuvable.'); return 0; }
     var touched={}, count=0;
-    specs.forEach(function(sp){
-      if(sp.zone==='ignore')return;
-      var m=sp.m, zone=sp.zone;
+    var firstSec=(typeof CC_sections!=='undefined'&&CC_sections.length)?CC_sections[0].id:'s1';
+    var ft2=function(m){return String(Math.round(m.areaM2*M2_FT2*10)/10);};
+    measures.forEach(function(m){
       var mem=membraneTag(m), suf=mem?(' · '+mem):'';
+      var secIds=(m.secIds&&m.secIds.length)?m.secIds:(m.secId?[m.secId]:[firstSec]);
+      // OUVERTURE : pas d'application, une ligne ouv par section cochée
       if(m.geomType==='opening'){
-        var r=CC_defaultRow('ouv'); r.secId=sp.secId; r.code=m.name||''; setDim(r,'l',m.owM); setDim(r,'h',m.ohM);
-        CC_rows.ouv.push(r); touched.ouv=1; count++;
-      } else if(m.geomType==='line'){
-        // une ligne CC murs par segment
-        var nseg=m.pts.length-1, hM=measHeightM(m);
-        for(var i=0;i<nseg;i++){
-          var len=segLenM(m.pts[i],m.pts[i+1]); if(len<=0)continue;
-          if(zone==='murs'){
-            var rm=CC_defaultRow('murs'); rm.secId=sp.secId;
-            rm.label=(m.name||'Mur')+(nseg>1?' #'+(i+1):'')+suf; setDim(rm,'l',len); setDim(rm,'h',hM);
-            CC_rows.murs.push(rm); touched.murs=1; count++;
-          }
-        }
-      } else { // area
-        var lbl=(m.name||'Surface')+suf;
-        if(zone==='murs'){
-          var rmu=CC_defaultRow('murs'); rmu.secId=sp.secId; rmu.label=lbl; rmu.surf=String(Math.round(m.areaM2*M2_FT2*10)/10);
-          CC_rows.murs.push(rmu); touched.murs=1; count++;
-        } else if(zone==='pig'){
-          var rpg=CC_defaultRow('pig'); rpg.secId=sp.secId; rpg.label=lbl; rpg.surf=String(Math.round(m.areaM2*M2_FT2*10)/10);
-          CC_rows.pig.push(rpg); touched.pig=1; count++;
-        } else { // grenier / plafonds
-          var rr=CC_defaultRow(zone); rr.secId=sp.secId; rr.label=lbl;
-          if(m.rect){ setDim(rr,'l',m.rectWM); setDim(rr,'w',m.rectHM); }
-          else { rr.surf=String(Math.round(m.areaM2*M2_FT2*10)/10); }
-          CC_rows[zone].push(rr); touched[zone]=1; count++;
-        }
+        secIds.forEach(function(secId){
+          var r=CC_defaultRow('ouv'); r.secId=secId; r.code=m.name||''; setDim(r,'l',m.owM); setDim(r,'h',m.ohM);
+          CC_rows.ouv.push(r); touched.ouv=1; count++;
+        });
+        m.sent=true; return;
       }
-      sp.m.sent=true; // suivi anti-duplication
+      var apps=m.apps||[];
+      if(!apps.length)return; // rien à générer sans application
+      var hM=measHeightM(m);
+      secIds.forEach(function(secId){
+        apps.forEach(function(app){
+          if(m.geomType==='line'){
+            // une ligne Murs par segment (mur / cloison / périmètre → murs)
+            var nseg=m.pts.length-1;
+            for(var i=0;i<nseg;i++){ var len=segLenM(m.pts[i],m.pts[i+1]); if(len<=0)continue;
+              var rm=CC_defaultRow('murs'); rm.secId=secId;
+              rm.label=(m.name||'Mur')+(nseg>1?' #'+(i+1):'')+suf; setDim(rm,'l',len); setDim(rm,'h',hM);
+              CC_rows.murs.push(rm); touched.murs=1; count++; }
+          } else { // area
+            var lbl=(m.name||'Surface')+suf;
+            if(app==='perimetre'){
+              // murs par segment du contour (polygone fermé) × hauteur
+              var pts=m.pts, n=pts.length;
+              for(var k=0;k<n;k++){ var a=pts[k], b=pts[(k+1)%n]; var len2=segLenM(a,b); if(len2<=0)continue;
+                var rmp=CC_defaultRow('murs'); rmp.secId=secId;
+                rmp.label=(m.name||'Périmètre')+' #'+(k+1)+suf; setDim(rmp,'l',len2); setDim(rmp,'h',hM);
+                CC_rows.murs.push(rmp); touched.murs=1; count++; }
+            } else if(app==='mur'){
+              var rmu=CC_defaultRow('murs'); rmu.secId=secId; rmu.label=lbl; rmu.surf=ft2(m);
+              CC_rows.murs.push(rmu); touched.murs=1; count++;
+            } else if(app==='pignon'){
+              var rpg=CC_defaultRow('pig'); rpg.secId=secId; rpg.label=lbl; rpg.surf=ft2(m);
+              CC_rows.pig.push(rpg); touched.pig=1; count++;
+            } else {
+              var zone=(app==='grenier'||app==='toiture')?'grenier':'plafonds';
+              var rr=CC_defaultRow(zone); rr.secId=secId; rr.label=lbl;
+              if(m.rect){ setDim(rr,'l',m.rectWM); setDim(rr,'w',m.rectHM); }
+              else { rr.surf=ft2(m); }
+              CC_rows[zone].push(rr); touched[zone]=1; count++;
+            }
+          }
+        });
+      });
+      m.sent=true; // anti-duplication
     });
     Object.keys(touched).forEach(function(z){ if(typeof CC_renderTable==='function')CC_renderTable(z); });
     if(typeof CC_recalc==='function')CC_recalc();
