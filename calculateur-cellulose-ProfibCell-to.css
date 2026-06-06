@@ -255,6 +255,7 @@ tr.row-dragging { opacity:0.45; background:var(--surface-3); }
 tr.drop-above td { box-shadow:inset 0 2px 0 0 #1a1a1a; }
 tr.drop-below td { box-shadow:inset 0 -2px 0 0 #1a1a1a; }
 .sec-group-head.drop-into td { background:var(--line); }
+.sec-group-sub.drop-into td { background:var(--line); }
 
 /* Recap sections */
 .sec-recap-table { width:100%; }
