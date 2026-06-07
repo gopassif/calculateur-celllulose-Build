@@ -384,3 +384,21 @@ tr.drop-below td { box-shadow:inset 0 -2px 0 0 #1a1a1a; }
 .gp-export-msg { color:#fff; font-family:var(--sans); font-size:14px; font-weight:500; letter-spacing:0.04em; }
 
 @media(max-width:700px){ .config-grid{grid-template-columns:1fr;} body{padding:16px 12px 80px;} .page-header{flex-direction:column;gap:8px;align-items:flex-start;} .mat-head{flex-direction:column;align-items:flex-start;} .inputs-nav{top:85px;} }
+
+/* Bouton « Mesure sur plan » mis en évidence (pill orange-rouge) */
+.gp-takeoff-cta{
+  background:linear-gradient(135deg,#fb7185 0%,#f97316 100%);
+  color:#fff!important;
+  border:none!important;
+  border-radius:999px;
+  padding:7px 16px;
+  font-weight:600;
+  box-shadow:0 2px 8px rgba(249,115,22,.35);
+  transition:transform .12s ease, box-shadow .12s ease, filter .12s ease;
+}
+.gp-takeoff-cta:hover{
+  filter:brightness(1.05);
+  box-shadow:0 4px 14px rgba(249,115,22,.5);
+  transform:translateY(-1px);
+}
+.gp-takeoff-cta svg{stroke:#fff;}
