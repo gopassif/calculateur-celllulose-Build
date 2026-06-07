@@ -2096,7 +2096,7 @@ CC_injectUI(CC_boot);
     angleAnn:null,              // annotation d'angle/pente (outil Angle)
     clip:null, undo:[], moving:null,  // copier/coller, annuler, déplacement
     imgW:0, imgH:0,
-    pdfDoc:null, imgSrc:null,
+    pdfDoc:null, imgSrc:null, loadToken:0,
     pages:[], cur:0,
     measures:[], scalePxPerM:null,
     moving:null, clip:null, undo:[],
@@ -2130,6 +2130,7 @@ CC_injectUI(CC_boot);
       else if(m.geomType==='opening'){
         if(m.oShape==='poly'){ if(m.pts.length>=3&&pointInPoly(p,m.pts))return m; }
         else if(m.oShape==='round'){ var cc=m.pts[0]; if(Math.hypot(p.x-cc.x,p.y-cc.y)<=(m.rM*S.scalePxPerM)+tol)return m; }
+        else if(m.oShape==='rect'){ if(m.pts.length>=4&&pointInPoly(p,m.pts))return m; }
         else { var c=m.pts[0]; var hw=(m.owM*S.scalePxPerM)/2||10, hh=(m.ohM*S.scalePxPerM)/2||10; if(Math.abs(p.x-c.x)<=hw+tol&&Math.abs(p.y-c.y)<=hh+tol)return m; }
       }
     }
@@ -2144,6 +2145,36 @@ CC_injectUI(CC_boot);
   function slopedArea(m){ return (m.areaM2||0)*slopeFactor(m.pente); }
   function penteDeg(p){ p=parseFloat(p)||0; return p>0?(Math.atan2(p,12)*180/Math.PI):0; }
   function centroid(pts){var x=0,y=0;pts.forEach(function(p){x+=p.x;y+=p.y;});return{x:x/pts.length,y:y/pts.length};}
+  // Point d'ancrage (centre) de l'étiquette d'une mesure (avant décalage labelOff)
+  function labelBase(m){
+    if(m.geomType==='opening'){
+      if(m.oShape==='poly'||m.oShape==='rect')return centroid(m.pts);
+      if(m.oShape==='round'){var c=m.pts[0];return {x:c.x,y:c.y-((m.rM||0)*S.scalePxPerM)-15};}
+      return {x:m.pts[0].x,y:m.pts[0].y-17}; // pointage : au-dessus du losange
+    }
+    return centroid(m.pts);
+  }
+  function labelSVG(cx,cy,text){
+    var w=Math.max(70,text.length*6.5);
+    return '<rect x="'+(cx-w/2)+'" y="'+(cy-9)+'" width="'+w+'" height="18" rx="4" fill="rgba(10,14,20,.85)"/>'+
+           '<text x="'+cx+'" y="'+(cy+4)+'" fill="#fff" font-size="11" font-family="monospace" text-anchor="middle">'+text+'</text>';
+  }
+  function hitLabel(m,p){
+    if(!m)return false;
+    var b=labelBase(m), off=m.labelOff||{dx:0,dy:0};
+    var t=measLabel(m), w=Math.max(70,t.length*6.5);
+    var cx=b.x+off.dx, cy=b.y+off.dy;
+    return Math.abs(p.x-cx)<=w/2+4 && Math.abs(p.y-cy)<=15;
+  }
+  function angleLabelInfo(){
+    var an=S.angleAnn; if(!an)return null; var P=an.pts;
+    var txt=an.deg.toFixed(1)+'\u00b0'+(an.pente!=null?(' \u00b7 '+(Math.round(an.pente*10)/10)+':12'):'');
+    return {bx:P[1].x+10+Math.max(70,txt.length*7)/2, by:P[1].y-2, lw:Math.max(70,txt.length*7)};
+  }
+  function hitAngleLabel(p){
+    var i=angleLabelInfo(); if(!i)return false; var off=S.angleAnn.off||{dx:0,dy:0};
+    return Math.abs(p.x-(i.bx+off.dx))<=i.lw/2+4 && Math.abs(p.y-(i.by+off.dy))<=13;
+  }
   // Angle (en degrés) au sommet b formé par a-b-c
   function angleABC(a,b,c){
     var v1x=a.x-b.x,v1y=a.y-b.y,v2x=c.x-b.x,v2y=c.y-b.y;
@@ -2153,6 +2184,11 @@ CC_injectUI(CC_boot);
   }
   // Pente x:12 correspondant à un angle (deg) — null si ≥ ~90°
   function penteX12(deg){ if(deg<=0||deg>=89.9)return null; return 12*Math.tan(deg*Math.PI/180); }
+  // 4 coins (px) d'une ouverture rectangulaire centrée, axis-aligned
+  function rectCornersPx(center,wM,hM){
+    var hw=(wM*S.scalePxPerM)/2, hh=(hM*S.scalePxPerM)/2;
+    return [{x:center.x-hw,y:center.y-hh},{x:center.x+hw,y:center.y-hh},{x:center.x+hw,y:center.y+hh},{x:center.x-hw,y:center.y+hh}];
+  }
   function measHeightM(m){return m.height!=null?m.height:S.ceilingH;}
 
   // ═══════════════════════════ DOM + CSS ═══════════════════════════════
@@ -2170,6 +2206,12 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-hd button{background:#222c38;border:1px solid #2e3a48;color:#e6edf3;padding:6px 13px;border-radius:6px;cursor:pointer;font-size:12px;}'+
     '#GPM_overlay .gpm-hd button:hover{border-color:#4ade80;color:#4ade80;}'+
     '#GPM_overlay .gpm-hd .gpm-send{background:#4ade80;color:#0b0f14;border-color:#4ade80;font-weight:600;}'+
+    '#GPM_overlay .gpm-hd .gpm-secbtn{background:#222c38;color:#cbd5e1;border:1px solid #2e3a48;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;}'+
+    '#GPM_overlay .gpm-hd .gpm-secbtn:hover{color:#fff;border-color:#8896a5;}'+
+    '#GPM_overlay .gpm-sec-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}'+
+    '#GPM_overlay .gpm-sec-name{flex:1;background:#0f151c;border:1px solid #2e3a48;border-radius:6px;color:#e6edf3;padding:6px 8px;font-size:13px;}'+
+    '#GPM_overlay .gpm-sec-del{width:30px;height:30px;border:1px solid #3a2730;background:#2a1a20;color:#fca5a5;border-radius:6px;cursor:pointer;font-size:15px;line-height:1;}'+
+    '#GPM_overlay .gpm-sec-del:hover{background:#3a2027;color:#fff;}'+
     '#GPM_overlay .gpm-hd .gpm-send:hover{background:#3ec971;color:#0b0f14;}'+
     '#GPM_overlay .gpm-close{background:#222c38;border:1px solid #2e3a48;color:#e6edf3;width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;}'+
     '#GPM_overlay .gpm-main{flex:1;display:flex;min-height:0;}'+
@@ -2270,13 +2312,14 @@ CC_injectUI(CC_boot);
       '<div class="gpm-badge">Mesure sur plan</div>'+
       '<input type="file" id="GPM_file" accept="application/pdf,image/*" style="display:none">'+
       '<div style="margin-left:auto;display:flex;gap:8px;align-items:center">'+
+        '<button class="gpm-secbtn" id="GPM_secBtn" title="Gérer les sections (RDC, Étage…)">Sections</button>'+
         '<button class="gpm-send" id="GPM_sendBtn">Envoyer vers le calculateur</button>'+
         '<button class="gpm-close" id="GPM_closeBtn" title="Fermer">×</button>'+
       '</div>'+
     '</div>'+
     '<div class="gpm-main">'+
       '<div class="gpm-tools">'+
-        '<button class="gpm-tool" id="GPM_t_upload" title="Charger un plan">'+svgIco('<path d="M12 16V4m0 0L8 8m4-4l4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>')+'Plan</button>'+
+        '<button class="gpm-tool" id="GPM_t_upload" title="Charger ou changer le plan">'+svgIco('<path d="M12 16V4m0 0L8 8m4-4l4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>')+'Plan</button>'+
         '<div class="gpm-tool-sep"></div>'+
         '<button class="gpm-tool" id="GPM_t_scale" data-tool="scale" disabled title="Caler l\'échelle">'+svgIco('<path d="M3 12h18M3 9v6M21 9v6M8 10v4M13 10v4M18 10v4"/>')+'Échelle</button>'+
         '<button class="gpm-tool" id="GPM_t_line" data-tool="line" disabled title="Ligne (multi-segments)">'+svgIco('<path d="M4 20L20 4"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="4" r="2"/>')+'Ligne</button>'+
@@ -2354,7 +2397,7 @@ CC_injectUI(CC_boot);
       '<label>Membranes</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0 0 6px"><input type="checkbox" id="GPM_rmMemInt" style="width:auto"> Membrane intérieure</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0"><input type="checkbox" id="GPM_rmMemExt" style="width:auto"> Membrane extérieure</label>'+
-      '<div id="GPM_rmPenteRow" style="display:none"><label>Pente (x:12) — surface inclinée, vide = à plat <span id="GPM_rmPenteDeg" style="color:#8896a5"></span></label><input type="number" id="GPM_rmPente" step="any" placeholder="ex. 6"></div>'+
+      '<div id="GPM_rmPenteRow" style="display:none"><label>Pente (x:12) — surface/ligne inclinée, vide = à plat <span id="GPM_rmPenteDeg" style="color:#8896a5"></span></label><input type="number" id="GPM_rmPente" step="any" placeholder="ex. 6"></div>'+
       '<div id="GPM_rmHRow" style="display:none"><label>Hauteur pour cette mesure (<span class="gpm-ou">m</span>) — vide = globale</label><input type="number" id="GPM_rmH" step="any"></div>'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_rmCancel">Annuler</button><button class="gpm-ok" id="GPM_rmOk">Enregistrer</button></div>'+
     '</div></div>'+
@@ -2365,6 +2408,14 @@ CC_injectUI(CC_boot);
       '<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#8896a5;margin-bottom:8px"><input type="checkbox" id="GPM_sendShowSent" style="width:auto"> Afficher aussi les mesures déjà envoyées</label>'+
       '<div id="GPM_sendBody"></div>'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_sendCancel">Annuler</button><button class="gpm-ok" id="GPM_sendOk">Injecter dans le calculateur</button></div>'+
+    '</div></div>'+
+    // gestionnaire de sections (reliées au tableau du calculateur)
+    '<div class="gpm-modal-bg" id="GPM_secModal"><div class="gpm-modal">'+
+      '<h4>Sections de niveaux</h4>'+
+      '<div style="font-size:12px;color:#8896a5;margin-bottom:8px">Définies ici ou dans le calculateur — elles sont <b>communes</b> (RDC, Étage, Garage…) et reliées au tableau.</div>'+
+      '<div id="GPM_secList"></div>'+
+      '<div style="display:flex;gap:6px;margin-top:8px"><input type="text" id="GPM_secNew" placeholder="ex. RDC, Étage, Garage…" style="flex:1"><button class="gpm-ok" id="GPM_secAdd">Ajouter</button></div>'+
+      '<div class="gpm-mbtns"><button class="gpm-ok" id="GPM_secClose">Fermer</button></div>'+
     '</div></div>';
     document.body.appendChild(ov);
     el=ov;
@@ -2385,23 +2436,27 @@ CC_injectUI(CC_boot);
 
   // ═══════════════════════════ Chargement plan ══════════════════════════
   function loadFile(file){
-    S.pages=[]; S.pdfDoc=null; S.imgSrc=null;
+    // Jeton : si un chargement plus récent démarre, l'ancien (lent, p.ex. fichier cloud
+    // OneDrive téléchargé en différé) est ABANDONNÉ à sa fin et n'écrase pas le travail en cours.
+    var token=(S.loadToken=(S.loadToken||0)+1);
     if(file.type==='application/pdf'){
       file.arrayBuffer().then(function(buf){
         return ensurePdfJs().then(function(lib){return lib.getDocument({data:buf}).promise;});
       }).then(function(pdf){
-        S.pdfDoc=pdf;
-        for(var i=1;i<=pdf.numPages;i++)S.pages.push({name:'Page '+i,scalePxPerM:null,measures:[],isPdf:true,pageNum:i,imgW:0,imgH:0});
-        afterLoad();
-      }).catch(function(e){alert(e.message||'Erreur PDF');});
+        if(token!==S.loadToken)return; // chargement périmé : on ne touche à rien
+        var pages=[]; for(var i=1;i<=pdf.numPages;i++)pages.push({name:'Page '+i,scalePxPerM:null,measures:[],isPdf:true,pageNum:i,imgW:0,imgH:0});
+        S.pdfDoc=pdf; S.imgSrc=null; S.pages=pages; afterLoad();
+      }).catch(function(e){ if(token===S.loadToken)alert(e.message||'Erreur PDF'); });
     } else {
       var url=URL.createObjectURL(file);
       var im=new Image();
       im.onload=function(){
-        S.imgSrc=url;
-        S.pages.push({name:file.name.replace(/\.[^.]+$/,''),scalePxPerM:null,measures:[],isPdf:false,src:url,imgW:im.width,imgH:im.height});
+        if(token!==S.loadToken){ URL.revokeObjectURL(url); return; } // chargement périmé : abandon
+        S.imgSrc=url; S.pdfDoc=null;
+        S.pages=[{name:file.name.replace(/\.[^.]+$/,''),scalePxPerM:null,measures:[],isPdf:false,src:url,imgW:im.width,imgH:im.height}];
         afterLoad();
       };
+      im.onerror=function(){ URL.revokeObjectURL(url); if(token===S.loadToken)alert('Image illisible.'); };
       im.src=url;
     }
   }
@@ -2437,6 +2492,7 @@ CC_injectUI(CC_boot);
     S.cur=idx; var pg=S.pages[idx];
     renderPageImage(pg).then(function(){
       S.imgW=pg.imgW; S.imgH=pg.imgH; S.scalePxPerM=pg.scalePxPerM; S.measures=pg.measures;
+      S.angleAnn=pg.angleAnn||null;
       S.drawing=null; S.selId=null;
       draw.setAttribute('width',S.imgW); draw.setAttribute('height',S.imgH); draw.setAttribute('viewBox','0 0 '+S.imgW+' '+S.imgH);
       var sr=stage.getBoundingClientRect();
@@ -2547,7 +2603,7 @@ CC_injectUI(CC_boot);
     var owM=Math.abs(b.x-a.x)/S.scalePxPerM, ohM=Math.abs(b.y-a.y)/S.scalePxPerM;
     var c={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
     S.drawing=null;
-    openOpeningModal(c, owM, ohM);
+    openOpeningModal(c, owM, ohM, null, 'rect');
   }
   function finishPolyOpening(){
     var d=S.drawing; if(!d||d.pts.length<3){S.drawing=null;redraw();return;}
@@ -2564,6 +2620,7 @@ CC_injectUI(CC_boot);
     var pts=S.drawing.pts.slice(0,3);
     var deg=angleABC(pts[0],pts[1],pts[2]);
     S.angleAnn={pts:pts, deg:deg, pente:penteX12(deg)};
+    if(S.pages[S.cur])S.pages[S.cur].angleAnn=S.angleAnn;
     S.drawing=null;
   }
 
@@ -2573,7 +2630,8 @@ CC_injectUI(CC_boot);
     return '<label>'+label+' (po)</label><input type="number" id="GPM_op'+key+'_po" step="any" value="'+(Math.round(m/IN_M*100)/100)+'">';
   }
   function opReadM(key){ var po=parseFloat((gid('GPM_op'+key+'_po')||{}).value)||0; return po*IN_M; }
-  function openOpeningModal(center, owM, ohM, traced){
+  function openOpeningModal(center, owM, ohM, traced, shape){
+    shape=shape||'point';
     var modal=gid('GPM_openModal'), name=gid('GPM_opName'), dims=gid('GPM_opDims'), secsBox=gid('GPM_opSecs');
     var opBox=modal.querySelector('.gpm-modal'); if(opBox&&opBox._resetDrag)opBox._resetDrag();
     name.value='';
@@ -2601,7 +2659,11 @@ CC_injectUI(CC_boot);
         var W=opReadM('W'), H=opReadM('H');
         if(!(W>0&&H>0)){ dims.style.outline='1px solid #f87171'; return null; }
         pushUndo();
-        m={id:idc++,geomType:'opening',pts:[center],name:name.value.trim(),owM:W,ohM:H,secIds:sids,sent:false};
+        if(shape==='rect'){
+          m={id:idc++,geomType:'opening',oShape:'rect',pts:rectCornersPx(center,W,H),name:name.value.trim(),owM:W,ohM:H,secIds:sids,sent:false};
+        } else {
+          m={id:idc++,geomType:'opening',oShape:'point',pts:[center],name:name.value.trim(),owM:W,ohM:H,secIds:sids,sent:false};
+        }
         S.lastOpenDims={W:W,H:H};
       }
       S.measures.push(m); S.selId=m.id;
@@ -2609,7 +2671,7 @@ CC_injectUI(CC_boot);
       return traced?{traced:true}:{W:m.owM,H:m.ohM};
     }
     function ok(){ var r=doSave(); if(r){ modal.classList.remove('show'); cleanup(); } }
-    function okNew(){ var r=doSave(); if(r&&!traced){ cleanup(); openOpeningModal(center, r.W, r.H); } }
+    function okNew(){ var r=doSave(); if(r&&!traced){ cleanup(); openOpeningModal(center, r.W, r.H, null, shape); } }
     function cancel(){modal.classList.remove('show');cleanup();S.drawing=null;redraw();}
     function onKey(e){if(e.key==='Enter')ok();if(e.key==='Escape'){e.stopPropagation();cancel();}}
     function cleanup(){gid('GPM_opOk').onclick=null;gid('GPM_opOkNew').onclick=null;gid('GPM_opCancel').onclick=null;dims.style.outline='';modal.removeEventListener('keydown',onKey);}
@@ -2640,13 +2702,15 @@ CC_injectUI(CC_boot);
     updH();
     // Pente (surfaces seulement) : interpolation de la surface réelle
     var penteRow=gid('GPM_rmPenteRow'), penteIn=gid('GPM_rmPente'), penteDegEl=gid('GPM_rmPenteDeg');
-    if(m.geomType==='area'){
+    if(m.geomType==='area'||m.geomType==='line'){
       penteRow.style.display='block';
       penteIn.value=(m.pente!=null&&m.pente!=='')?m.pente:'';
-      function updPente(){
+      var updPente=function(){
         var p=parseFloat(penteIn.value)||0;
-        penteDegEl.textContent=p>0?('— '+penteDeg(p).toFixed(1)+'° · aire réelle '+fmtArea(m.areaM2*slopeFactor(p))):'';
-      }
+        if(p<=0){penteDegEl.textContent='';return;}
+        if(m.geomType==='line')penteDegEl.textContent='— '+penteDeg(p).toFixed(1)+'\u00b0 · longueur réelle '+fmtLen(m.lengthM*slopeFactor(p));
+        else penteDegEl.textContent='— '+penteDeg(p).toFixed(1)+'\u00b0 · aire réelle '+fmtArea(m.areaM2*slopeFactor(p));
+      };
       penteIn.oninput=updPente; updPente();
     } else { penteRow.style.display='none'; }
     gid('GPM_rmH').value=m.height!=null?lenVal(m.height).toFixed(2):'';
@@ -2659,7 +2723,7 @@ CC_injectUI(CC_boot);
       m.memExt=gid('GPM_rmMemExt').checked;
       var hv=gid('GPM_rmH').value;
       m.height=(hv&&parseFloat(hv)>0)?(S.unit==='metric'?parseFloat(hv):parseFloat(hv)*FT_M):null;
-      m.pente=(m.geomType==='area')?(parseFloat(gid('GPM_rmPente').value)||0):0;
+      m.pente=(m.geomType==='area'||m.geomType==='line')?(parseFloat(gid('GPM_rmPente').value)||0):0;
       modal.classList.remove('show'); cleanup(); renderItems(); redraw();
     }
     function cancel(){modal.classList.remove('show');cleanup();renderItems();redraw();}
@@ -2682,6 +2746,34 @@ CC_injectUI(CC_boot);
   }
   function ccSecItems(){ var s=(typeof CC_sections!=='undefined')?CC_sections:[{id:'s1',name:'Section 1'}]; return s.map(function(x){return {id:x.id,name:x.name};}); }
   function secName(id){ var s=(typeof CC_sections!=='undefined')?CC_sections:[]; for(var i=0;i<s.length;i++)if(s[i].id===id)return s[i].name; return id; }
+  // ─── Gestionnaire de sections (commun avec le tableau du calculateur) ───
+  function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+  function ccSecRefresh(){ if(typeof CC_renderSectionsBar==='function')CC_renderSectionsBar(); if(typeof CC_renderAllTables==='function')CC_renderAllTables(); if(typeof CC_recalc==='function')CC_recalc(); }
+  function renderSecManager(){
+    var box=gid('GPM_secList'); if(!box)return;
+    var secs=(typeof CC_sections!=='undefined')?CC_sections:[];
+    box.innerHTML=secs.map(function(s){
+      return '<div class="gpm-sec-row"><input class="gpm-sec-name" data-id="'+s.id+'" value="'+escAttr(s.name)+'"><button class="gpm-sec-del" data-id="'+s.id+'" title="Supprimer">\u00d7</button></div>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('.gpm-sec-name'),function(inp){
+      inp.onchange=function(){ if(typeof CC_renameSection==='function')CC_renameSection(inp.dataset.id,inp.value); };
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('.gpm-sec-del'),function(b){
+      b.onclick=function(){
+        if((CC_sections||[]).length<=1){ alert('Au moins une section est requise.'); return; }
+        if(typeof CC_delSection==='function')CC_delSection(b.dataset.id);
+        renderSecManager();
+      };
+    });
+  }
+  function addSecFromTakeoff(){
+    var inp=gid('GPM_secNew'); var v=(inp.value||'').trim(); if(!v)return;
+    if(typeof CC_sections==='undefined'){ alert('Calculateur introuvable.'); return; }
+    CC_sections.push({id:'s'+Date.now(),name:v});
+    ccSecRefresh();
+    inp.value=''; renderSecManager(); inp.focus();
+  }
+  function openSecManager(){ renderSecManager(); gid('GPM_secModal').classList.add('show'); setTimeout(function(){var i=gid('GPM_secNew');if(i)i.focus();},30); }
   function measLabel(m){
     var pre=m.name?m.name+' · ':'';
     if(m.geomType==='opening')return (m.oShape==='poly'||m.oShape==='round')?((m.name||'Ouv.')+' '+fmtArea(m.areaM2)):((m.name||'Ouv.')+' '+lenVal(m.owM).toFixed(2)+'×'+lenVal(m.ohM).toFixed(2));
@@ -2698,34 +2790,38 @@ CC_injectUI(CC_boot);
           var ps=m.pts.map(function(q){return q.x+','+q.y;}).join(' ');
           svg+='<polygon points="'+ps+'" fill="'+col+'33" stroke="'+col+'" stroke-width="'+(sel?4:2.5)+'" stroke-dasharray="5 3"/>';
           if(sel)m.pts.forEach(function(q){svg+='<circle cx="'+q.x+'" cy="'+q.y+'" r="6" fill="#ffffff" stroke="'+col+'" stroke-width="2"/>';});
-          var cp=centroid(m.pts), lp=measLabel(m), wp=Math.max(70,lp.length*6.5);
-          svg+='<rect x="'+(cp.x-wp/2)+'" y="'+(cp.y-9)+'" width="'+wp+'" height="18" rx="4" fill="rgba(10,14,20,.85)"/>';
-          svg+='<text x="'+cp.x+'" y="'+(cp.y+4)+'" fill="#fff" font-size="11" font-family="monospace" text-anchor="middle">'+lp+'</text>';
+          var lbP=labelBase(m), ofP=m.labelOff||{dx:0,dy:0};
+          svg+=labelSVG(lbP.x+ofP.dx,lbP.y+ofP.dy,measLabel(m));
           return;
         }
         if(m.oShape==='round'){
           var ctr=m.pts[0], rr=(m.rM||0)*S.scalePxPerM;
           svg+='<circle cx="'+ctr.x+'" cy="'+ctr.y+'" r="'+rr+'" fill="'+col+'33" stroke="'+col+'" stroke-width="'+(sel?4:2.5)+'" stroke-dasharray="5 3"/>';
           svg+='<circle cx="'+ctr.x+'" cy="'+ctr.y+'" r="3.5" fill="'+col+'"/>';
-          var lr=measLabel(m), wr=Math.max(70,lr.length*6.5);
-          svg+='<rect x="'+(ctr.x-wr/2)+'" y="'+(ctr.y-rr-24)+'" width="'+wr+'" height="18" rx="4" fill="rgba(10,14,20,.85)"/>';
-          svg+='<text x="'+ctr.x+'" y="'+(ctr.y-rr-10)+'" fill="#fff" font-size="11" font-family="monospace" text-anchor="middle">'+lr+'</text>';
+          var lbR=labelBase(m), ofR=m.labelOff||{dx:0,dy:0};
+          svg+=labelSVG(lbR.x+ofR.dx,lbR.y+ofR.dy,measLabel(m));
+          return;
+        }
+        if(m.oShape==='rect'&&m.pts.length>=4){
+          var psr=m.pts.map(function(q){return q.x+','+q.y;}).join(' ');
+          svg+='<polygon points="'+psr+'" fill="'+col+'33" stroke="'+col+'" stroke-width="'+(sel?4:2.5)+'"/>';
+          if(sel)m.pts.forEach(function(q){svg+='<circle cx="'+q.x+'" cy="'+q.y+'" r="6" fill="#ffffff" stroke="'+col+'" stroke-width="2"/>';});
+          var lbRc=labelBase(m), ofRc=m.labelOff||{dx:0,dy:0};
+          svg+=labelSVG(lbRc.x+ofRc.dx,lbRc.y+ofRc.dy,measLabel(m));
           return;
         }
         var p=m.pts[0], s=sel?9:7;
         svg+='<rect x="'+(p.x-s)+'" y="'+(p.y-s)+'" width="'+(s*2)+'" height="'+(s*2)+'" rx="2" transform="rotate(45 '+p.x+' '+p.y+')" fill="'+col+'55" stroke="'+col+'" stroke-width="'+(sel?3:2)+'"/>';
-        var lbl=measLabel(m), w=Math.max(70,lbl.length*6.5);
-        svg+='<rect x="'+(p.x-w/2)+'" y="'+(p.y-26)+'" width="'+w+'" height="18" rx="4" fill="rgba(10,14,20,.85)"/>';
-        svg+='<text x="'+p.x+'" y="'+(p.y-12)+'" fill="#fff" font-size="11" font-family="monospace" text-anchor="middle">'+lbl+'</text>';
+        var lbPt=labelBase(m), ofPt=m.labelOff||{dx:0,dy:0};
+        svg+=labelSVG(lbPt.x+ofPt.dx,lbPt.y+ofPt.dy,measLabel(m));
         return;
       }
       var pStr=m.pts.map(function(p){return p.x+','+p.y;}).join(' ');
       if(m.geomType==='area')svg+='<polygon points="'+pStr+'" fill="'+col+'33" stroke="'+col+'" stroke-width="'+(sel?4:2.5)+'"/>';
       else svg+='<polyline points="'+pStr+'" fill="none" stroke="'+col+'" stroke-width="'+(sel?4:2.5)+'"/>';
       m.pts.forEach(function(p){var hr=sel?6:3.5;svg+='<circle cx="'+p.x+'" cy="'+p.y+'" r="'+hr+'" fill="'+(sel?'#ffffff':col)+'" stroke="'+col+'" stroke-width="'+(sel?2:0)+'"/>';});
-      var c=centroid(m.pts), lbl2=measLabel(m), w2=Math.max(70,lbl2.length*6.5);
-      svg+='<rect x="'+(c.x-w2/2)+'" y="'+(c.y-11)+'" width="'+w2+'" height="18" rx="4" fill="rgba(10,14,20,.85)"/>';
-      svg+='<text x="'+c.x+'" y="'+(c.y+3)+'" fill="#fff" font-size="11" font-family="monospace" text-anchor="middle">'+lbl2+'</text>';
+      var lbA=labelBase(m), ofA=m.labelOff||{dx:0,dy:0};
+      svg+=labelSVG(lbA.x+ofA.dx,lbA.y+ofA.dy,measLabel(m));
     });
     if(S.drawing&&S.drawing.geom!=='angle'){
       var col2=S.tool==='scale'?'#fbbf24':(S.tool==='opening'?'#2dd4bf':'#4ade80');
@@ -2758,13 +2854,13 @@ CC_injectUI(CC_boot);
     }
     // Outil Angle : annotation finale (persistante)
     if(S.angleAnn){
-      var an=S.angleAnn, P=an.pts;
+      var an=S.angleAnn, P=an.pts, ao=an.off||{dx:0,dy:0};
       svg+='<polyline points="'+P[0].x+','+P[0].y+' '+P[1].x+','+P[1].y+' '+P[2].x+','+P[2].y+'" fill="none" stroke="#f59e0b" stroke-width="3"/>';
       P.forEach(function(p,i){svg+='<circle cx="'+p.x+'" cy="'+p.y+'" r="'+(i===1?5:4)+'" fill="#f59e0b"/>';});
-      var txt=an.deg.toFixed(1)+'°'+(an.pente!=null?(' · '+(Math.round(an.pente*10)/10)+':12'):'');
-      var lw=Math.max(70,txt.length*7);
-      svg+='<rect x="'+(P[1].x+10)+'" y="'+(P[1].y-12)+'" width="'+lw+'" height="20" rx="4" fill="#f59e0b"/>';
-      svg+='<text x="'+(P[1].x+10+lw/2)+'" y="'+(P[1].y+2)+'" fill="#1a1206" font-size="12" font-weight="bold" font-family="monospace" text-anchor="middle">'+txt+'</text>';
+      var txt=an.deg.toFixed(1)+'\u00b0'+(an.pente!=null?(' \u00b7 '+(Math.round(an.pente*10)/10)+':12'):'');
+      var lw=Math.max(70,txt.length*7), acx=P[1].x+10+lw/2+ao.dx, acy=P[1].y-2+ao.dy;
+      svg+='<rect x="'+(acx-lw/2)+'" y="'+(acy-10)+'" width="'+lw+'" height="20" rx="4" fill="#f59e0b"/>';
+      svg+='<text x="'+acx+'" y="'+(acy+4)+'" fill="#1a1206" font-size="12" font-weight="bold" font-family="monospace" text-anchor="middle">'+txt+'</text>';
     }
     draw.innerHTML=svg;
   }
@@ -2777,7 +2873,7 @@ CC_injectUI(CC_boot);
     S.measures.forEach(function(m){
       var col=measColor(m);
       var nameTxt=m.geomType==='opening'?(m.name||'Ouverture'):(m.name||(m.geomType==='area'?'Surface':'Ligne'));
-      var geomTxt=m.geomType==='opening'?((m.oShape==='poly'||m.oShape==='round')?fmtArea(m.areaM2):(lenVal(m.owM).toFixed(2)+'×'+lenVal(m.ohM).toFixed(2)+' '+lenUnit())):(m.geomType==='area'?(m.pente>0?fmtArea(slopedArea(m))+' (pente '+m.pente+':12)':fmtArea(m.areaM2)):fmtLen(m.lengthM));
+      var geomTxt=m.geomType==='opening'?((m.oShape==='poly'||m.oShape==='round')?(fmtArea(m.areaM2)+' · pér. '+fmtLen(m.perimM||0)):(lenVal(m.owM).toFixed(2)+'×'+lenVal(m.ohM).toFixed(2)+' '+lenUnit())):(m.geomType==='area'?(m.pente>0?fmtArea(slopedArea(m))+' (pente '+m.pente+':12)':fmtArea(m.areaM2)):(m.pente>0?fmtLen(m.lengthM*slopeFactor(m.pente))+' (pente '+m.pente+':12)':fmtLen(m.lengthM)));
       if(m.geomType==='line'){var nseg=m.pts.length-1; geomTxt+=' · '+nseg+' seg.';}
       var tags='';
       if(m.geomType!=='opening'){
@@ -2810,7 +2906,8 @@ CC_injectUI(CC_boot);
     if(m.oShape==='poly'||m.oShape==='round'){
       openOpeningModal(m.pts[0],0,0,{shape:m.oShape,pts:m.pts,rM:m.rM,areaM2:m.areaM2,perimM:m.perimM});
     } else {
-      openOpeningModal(m.pts[0], m.owM, m.ohM);
+      var ctr=(m.oShape==='rect'&&m.pts.length>=4)?centroid(m.pts):m.pts[0];
+      openOpeningModal(ctr, m.owM, m.ohM, null, m.oShape||'point');
     }
     var name=gid('GPM_opName'), secsBox=gid('GPM_opSecs');
     if(name)name.value=m.name||'';
@@ -2945,7 +3042,7 @@ CC_injectUI(CC_boot);
           if(m.geomType==='line'){
             // une ligne Murs par segment (mur / cloison / périmètre → murs)
             var nseg=m.pts.length-1;
-            for(var i=0;i<nseg;i++){ var len=segLenM(m.pts[i],m.pts[i+1]); if(len<=0)continue;
+            for(var i=0;i<nseg;i++){ var len=segLenM(m.pts[i],m.pts[i+1])*slopeFactor(m.pente); if(len<=0)continue;
               var rm=CC_defaultRow('murs'); rm.secId=secId;
               rm.label=(m.name||'Mur')+(nseg>1?' #'+(i+1):'')+suf; setDim(rm,'l',len); setDim(rm,'h',hM);
               CC_rows.murs.push(rm); touched.murs=1; count++; }
@@ -3002,8 +3099,14 @@ CC_injectUI(CC_boot);
       var p=toImg(e);
       if(p.x<0||p.x>S.imgW||p.y<0||p.y>S.imgH)return;
       if(S.tool==='select'){
+        if(S.angleAnn&&hitAngleLabel(p)){ S.moving={angle:true,last:p,moved:false}; return; }
         var sel=S.measures.find(function(x){return x.id===S.selId;});
-        if(sel&&(sel.geomType!=='opening'||sel.oShape==='poly')){ var vi=hitVertex(sel,p); if(vi>=0){ S.moving={id:sel.id,last:p,moved:false,vtx:vi}; redraw(); return; } }
+        // 1) déplacer l'étiquette de la mesure sélectionnée
+        if(sel&&hitLabel(sel,p)){ S.moving={id:sel.id,last:p,moved:false,label:true}; redraw(); return; }
+        // 2) déplacer un sommet (surfaces, lignes, ouvertures poly/rect)
+        var vEdit=sel&&(sel.geomType!=='opening'||sel.oShape==='poly'||sel.oShape==='rect');
+        if(vEdit){ var vi=hitVertex(sel,p); if(vi>=0){ var mv={id:sel.id,last:p,moved:false,vtx:vi}; if(sel.oShape==='rect'){var opp=sel.pts[(vi+2)%4];mv.anchor={x:opp.x,y:opp.y};} S.moving=mv; redraw(); return; } }
+        // 3) sélectionner / déplacer la mesure entière
         var hit=hitMeasure(p);
         if(hit){ S.selId=hit.id; S.moving={id:hit.id,last:p,moved:false,vtx:null}; }
         else { S.selId=null; S.moving=null; }
@@ -3018,14 +3121,14 @@ CC_injectUI(CC_boot);
         redraw(); return;
       }
       if(S.tool==='angle'){
-        if(!S.drawing){S.angleAnn=null;S.drawing={geom:'angle',pts:[p]};}
+        if(!S.drawing){S.angleAnn=null;if(S.pages[S.cur])S.pages[S.cur].angleAnn=null;S.drawing={geom:'angle',pts:[p]};}
         else S.drawing.pts.push(p);
         if(S.drawing.pts.length>=3){ finishAngle(); }
         redraw(); return;
       }
       if(S.tool==='opening'){
         if(!S.scalePxPerM){alert('Cale d\'abord l\'échelle.');setTool('scale');return;}
-        if(S.openMode==='point'){ S.drawing=null; openOpeningModal(p, S.lastOpenDims?S.lastOpenDims.W:0, S.lastOpenDims?S.lastOpenDims.H:0); redraw(); return; }
+        if(S.openMode==='point'){ S.drawing=null; openOpeningModal(p, S.lastOpenDims?S.lastOpenDims.W:0, S.lastOpenDims?S.lastOpenDims.H:0, null, 'point'); redraw(); return; }
         if(S.openMode==='poly'){ if(!S.drawing)S.drawing={geom:'opening',pts:[p]}; else S.drawing.pts.push(p); redraw(); return; }
         if(S.openMode==='round'){ if(!S.drawing)S.drawing={geom:'opening',pts:[p]}; else {S.drawing.pts.push(p);finishRoundOpening();} redraw(); return; }
         if(!S.drawing)S.drawing={geom:'opening',pts:[p]}; else {S.drawing.pts.push(p);finishOpening();}
@@ -3034,14 +3137,26 @@ CC_injectUI(CC_boot);
     });
     stage.addEventListener('mousemove',function(e){
       if(S.moving){
+        var pm=toImg(e);
+        if(S.moving.angle){ var ai=angleLabelInfo(); if(ai&&S.angleAnn){ S.angleAnn.off={dx:pm.x-ai.bx,dy:pm.y-ai.by}; if(S.pages[S.cur])S.pages[S.cur].angleAnn=S.angleAnn; } S.moving.last=pm; redraw(); return; }
         if(!S.moving.moved){pushUndo();S.moving.moved=true;}
-        var pm=toImg(e); var m=S.measures.find(function(x){return x.id===S.moving.id;});
+        var m=S.measures.find(function(x){return x.id===S.moving.id;});
         if(m){
-          if(S.moving.vtx!=null){
-            m.pts[S.moving.vtx]={x:pm.x,y:pm.y};
-            if(m.geomType==='area'){ m.rect=false; m.areaM2=areaM2(m.pts); }
-            else if(m.geomType==='line'){ m.lengthM=lineLenM(m.pts); }
-            else if(m.geomType==='opening'&&m.oShape==='poly'){ m.areaM2=areaM2(m.pts); m.perimM=lineLenM(m.pts.concat([m.pts[0]])); }
+          if(S.moving.label){
+            var b=labelBase(m); m.labelOff={dx:pm.x-b.x,dy:pm.y-b.y};
+          } else if(S.moving.vtx!=null){
+            if(m.geomType==='opening'&&m.oShape==='rect'){
+              // redimensionnement axis-aligned : coin opposé (ancre) fixe
+              var an=S.moving.anchor||m.pts[(S.moving.vtx+2)%4];
+              var x0=Math.min(an.x,pm.x),y0=Math.min(an.y,pm.y),x1=Math.max(an.x,pm.x),y1=Math.max(an.y,pm.y);
+              m.pts=[{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
+              m.owM=(x1-x0)/S.scalePxPerM; m.ohM=(y1-y0)/S.scalePxPerM;
+            } else {
+              m.pts[S.moving.vtx]={x:pm.x,y:pm.y};
+              if(m.geomType==='area'){ m.rect=false; m.areaM2=areaM2(m.pts); }
+              else if(m.geomType==='line'){ m.lengthM=lineLenM(m.pts); }
+              else if(m.geomType==='opening'&&m.oShape==='poly'){ m.areaM2=areaM2(m.pts); m.perimM=lineLenM(m.pts.concat([m.pts[0]])); }
+            }
           } else {
             translateMeasure(m,pm.x-S.moving.last.x,pm.y-S.moving.last.y);
           }
@@ -3077,6 +3192,11 @@ CC_injectUI(CC_boot);
       if(e.key==='Enter'&&S.drawing&&S.tool==='opening'&&S.openMode==='poly'&&S.drawing.pts.length>=3)finishPolyOpening();
       if((e.key==='r'||e.key==='R')&&S.tool==='area'&&!inField){ S.areaMode=S.areaMode==='rect'?'poly':'rect'; S.drawing=null; setTool('area'); }
       if((e.key==='r'||e.key==='R')&&S.tool==='opening'&&!inField){ var oc=['rect','poly','round','point']; S.openMode=oc[(oc.indexOf(S.openMode)+1)%oc.length]; S.drawing=null; setTool('opening'); }
+      // Raccourcis d'outils (clavier) — uniquement hors champ de saisie, sans Ctrl/Cmd, plan chargé
+      if(!inField&&!mod&&S.imgW){
+        var sc={s:'select',l:'line',a:'area',o:'opening',e:'scale',p:'pan',g:'angle'}[(e.key||'').toLowerCase()];
+        if(sc){ var tb=gid('GPM_t_'+(sc==='opening'?'open':sc)); if(tb&&!tb.disabled){ setTool(sc); e.preventDefault(); return; } }
+      }
       if(e.key==='Escape'){
         // 1er ESC : ferme UNIQUEMENT la modale ouverte (sans toucher au dessin ni à l'overlay)
         var om=el.querySelector('.gpm-modal-bg.show'); if(om){om.classList.remove('show');return;}
@@ -3106,7 +3226,15 @@ CC_injectUI(CC_boot);
     var fileInput=gid('GPM_file');
     gid('GPM_t_upload').onclick=function(){fileInput.click();};
     gid('GPM_emptyBtn').onclick=function(){fileInput.click();};
-    fileInput.onchange=function(e){var f=e.target.files[0];if(f)loadFile(f);e.target.value='';};
+    fileInput.onchange=function(e){
+      var f=e.target.files[0];
+      if(f){
+        var hasWork=(S.pages||[]).some(function(p){return p.measures&&p.measures.length;});
+        if(hasWork&&!window.confirm('Remplacer le plan actuel ? Les mesures déjà prises seront retirées.')){ e.target.value=''; return; }
+        loadFile(f);
+      }
+      e.target.value='';
+    };
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-tool[data-tool]'),function(b){b.onclick=function(){if(!b.disabled)setTool(b.dataset.tool);};});
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-sub'),function(b){b.onclick=function(){selectSub(b.dataset.tool,b.dataset.sub);};});
     gid('GPM_zoomIn').onclick=function(){S.zoom=Math.min(8,S.zoom*1.2);applyTransform();};
@@ -3117,6 +3245,10 @@ CC_injectUI(CC_boot);
     gid('GPM_pageName').oninput=function(e){if(S.pages[S.cur]){S.pages[S.cur].name=e.target.value||('Page '+(S.cur+1));renderPageTabs();}};
     gid('GPM_closeBtn').onclick=function(){GPM_close();};
     gid('GPM_sendBtn').onclick=function(){openSendPanel();};
+    gid('GPM_secBtn').onclick=function(){openSecManager();};
+    gid('GPM_secAdd').onclick=function(){addSecFromTakeoff();};
+    gid('GPM_secClose').onclick=function(){gid('GPM_secModal').classList.remove('show');};
+    gid('GPM_secNew').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();addSecFromTakeoff();}if(e.key==='Escape'){e.stopPropagation();gid('GPM_secModal').classList.remove('show');}});
     bindStage(); bindKeys();
     ['GPM_scaleModal','GPM_roleModal','GPM_openModal'].forEach(function(id){
       var box=el.querySelector('#'+id+' .gpm-modal'); if(box)makeDraggable(box, box.querySelector('h4'));
@@ -3144,7 +3276,7 @@ CC_injectUI(CC_boot);
   window.GPM_serialize=function(){
     try{
       return { cur:S.cur, pages:(S.pages||[]).map(function(p){
-        return { name:p.name, scalePxPerM:p.scalePxPerM, imgW:p.imgW, imgH:p.imgH, isPdf:!!p.isPdf, pageNum:p.pageNum,
+        return { name:p.name, scalePxPerM:p.scalePxPerM, imgW:p.imgW, imgH:p.imgH, isPdf:!!p.isPdf, pageNum:p.pageNum, angleAnn:p.angleAnn||null,
           measures:(p.measures||[]).map(function(m){return Object.assign({},m);}) };
       }) };
     }catch(e){return null;}
@@ -3153,7 +3285,7 @@ CC_injectUI(CC_boot);
     if(!obj||!Array.isArray(obj.pages))return;
     S.pages=obj.pages.map(function(p){
       return { name:p.name||'Plan', scalePxPerM:p.scalePxPerM||null, imgW:p.imgW||1000, imgH:p.imgH||700,
-        isPdf:!!p.isPdf, pageNum:p.pageNum||1, measures:Array.isArray(p.measures)?p.measures:[], restored:true };
+        isPdf:!!p.isPdf, pageNum:p.pageNum||1, angleAnn:p.angleAnn||null, measures:Array.isArray(p.measures)?p.measures:[], restored:true };
     });
     S.cur=Math.max(0,Math.min(obj.cur||0,S.pages.length-1));
     if(built&&S.pages.length){ S.pdfDoc=null; var em=gid('GPM_empty'); if(em)em.style.display='none'; var zc=gid('GPM_zoomctl'); if(zc)zc.style.display='flex'; showPage(S.cur); renderPageTabs(); }
@@ -3162,6 +3294,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, penteX12:penteX12, centroid:centroid };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager };
   }
 })();
