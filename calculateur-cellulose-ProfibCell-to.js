@@ -1971,16 +1971,38 @@ function CC_doPDF(){
       columnStyles:{0:{cellWidth:PW*0.22,halign:'left'},2:{cellWidth:PW*0.16,halign:'left'}},
       didParseCell:function(data){if(data.section==='body'&&data.row.raw.length===1)return;if(data.column.index===1||data.column.index>=3)data.cell.styles.halign='right';}}});
 
-  // OUVERTURES : Code, Emplacement, Qté, Largeur, Hauteur, Jeu, Surface, Sacs retranchés
-  var headO=['Code','Emplacement','Qt\u00e9','Larg. (po)','Haut. (po)','Jeu ('+U_EP+')','Surf. ('+U_SURF+')','Sacs retr.'];
+  // OUVERTURES : Code, Empl., Qté, Larg., Haut., Seuil (larg.+12po), Périmètre, Jeu, Surface, Sacs retr.
+  var headO=['Code','Empl.','Qt\u00e9','Larg. ('+U_EP+')','Haut. ('+U_EP+')','Ruban seuil ('+U_EP+')','P\u00e9rim. ('+U_LEN+')','Jeu ('+U_EP+')','Surf. ('+U_SURF+')','Sacs retr.'];
   var oPo=function(pi,po,mm){return MM?(CC_pf(mm)/25.4):((CC_pf(pi)||0)*12+(CC_pf(po)||0));};
-  var oRowFn=function(r){return [r.code||'\u2014',r.place||'\u2014',CC_pf(r.qty)||1,CC_fmt(oPo(r.l_pi,r.l_po,r.l_mm),1),CC_fmt(oPo(r.h_pi,r.h_po,r.h_mm),1),(MM?CC_fmt((CC_pf(r.jeu)||0.5)*25.4,0):CC_fmt(CC_pf(r.jeu)||0.5,2)),pSurf(r._surf||0),(r._surf>0?'-'+intSac(r._sacs||0):'0')];};
-  var oSubFn=function(sec,rr){var ss=0,sk=0;rr.forEach(function(r){ss+=r._surf||0;sk+=r._sacs||0;});return [{content:'Sous-total \u2014 '+sec.name,colSpan:6,styles:Object.assign({halign:'left'},SEC_SUB)},{content:ss?pSurf(ss):'\u2014',styles:SEC_SUB},{content:'-'+intSac(sk),styles:SEC_SUB}];};
-  var oBody=CC_rows.ouv.length?(d.multiSection?grouped(CC_rows.ouv,8,oRowFn,oSubFn):CC_rows.ouv.map(oRowFn)):[['Aucune ouverture saisie','','','','','','','']];
-  paginate({title:'Ouvertures \u00e0 retrancher',intro:'Surface des ouvertures (jeu inclus) retranch\u00e9e des murs.',
-    head:headO,fullBody:oBody,foot:['Total','','','','','','('+pSurf(Z.ouv.surf)+')','-'+intSac(Z.ouv.sacs)],
+  var seuilDisp=function(inch){return MM?CC_fmt(inch*25.4,0):CC_fmt(inch,1);};      // ruban en po (ou mm)
+  var perimDisp=function(ft){return MM?CC_fmt(ft*0.3048,2):CC_fmt(ft,2);};          // périmètre en pi (ou m)
+  // Ruban de seuil = (largeur + 12 po) × quantité ; périmètre = r._perim (déjà × qté).
+  var oRowFn=function(r){
+    var q=Math.max(1,CC_pf(r.qty)||1);
+    var w=oPo(r.l_pi,r.l_po,r.l_mm), h=oPo(r.h_pi,r.h_po,r.h_mm);
+    var sIn=(w>0)?((w+12)*q):0;
+    return [r.code||'\u2014',r.place||'\u2014',q,
+      (w>0?CC_fmt(w,1):'\u2014'),(h>0?CC_fmt(h,1):'\u2014'),
+      (sIn>0?seuilDisp(sIn):'\u2014'),
+      perimDisp(r._perim||0),
+      (MM?CC_fmt((CC_pf(r.jeu)||0.5)*25.4,0):CC_fmt(CC_pf(r.jeu)||0.5,2)),
+      pSurf(r._surf||0),(r._surf>0?'-'+intSac(r._sacs||0):'0')];
+  };
+  var oSubFn=function(sec,rr){
+    var ss=0,sk=0,sSe=0,sP=0;
+    rr.forEach(function(r){var q=Math.max(1,CC_pf(r.qty)||1);var w=oPo(r.l_pi,r.l_po,r.l_mm);ss+=r._surf||0;sk+=r._sacs||0;if(w>0)sSe+=(w+12)*q;sP+=r._perim||0;});
+    return [{content:'Sous-total \u2014 '+sec.name,colSpan:5,styles:Object.assign({halign:'left'},SEC_SUB)},
+      {content:sSe?seuilDisp(sSe):'\u2014',styles:SEC_SUB},{content:perimDisp(sP),styles:SEC_SUB},
+      {content:'',styles:SEC_SUB},{content:ss?pSurf(ss):'\u2014',styles:SEC_SUB},{content:'-'+intSac(sk),styles:SEC_SUB}];
+  };
+  var sumSeuilIn=0,sumPerimFt=0;
+  CC_rows.ouv.forEach(function(r){var q=Math.max(1,CC_pf(r.qty)||1);var w=oPo(r.l_pi,r.l_po,r.l_mm);if(w>0)sumSeuilIn+=(w+12)*q;sumPerimFt+=(r._perim||0);});
+  var oBody=CC_rows.ouv.length?(d.multiSection?grouped(CC_rows.ouv,10,oRowFn,oSubFn):CC_rows.ouv.map(oRowFn)):[['Aucune ouverture saisie','','','','','','','','','']];
+  paginate({title:'Ouvertures \u00e0 retrancher',intro:'Ruban de seuil (largeur + 12 po), p\u00e9rim\u00e8tre et surface (jeu inclus) retranch\u00e9e des murs.',
+    head:headO,fullBody:oBody,
+    foot:['Total','','','','',seuilDisp(sumSeuilIn),perimDisp(sumPerimFt),'','('+pSurf(Z.ouv.surf)+')','-'+intSac(Z.ouv.sacs)],
     at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
-      columnStyles:{0:{cellWidth:PW*0.13,halign:'left'},1:{cellWidth:PW*0.17,halign:'left'}},
+      columnStyles:{0:{cellWidth:PW*0.10,halign:'left'},1:{cellWidth:PW*0.11,halign:'left'}},
       didParseCell:function(data){if(data.section==='body'&&data.row.raw.length===1)return;if(data.column.index>=2)data.cell.styles.halign='right';}}});
 
   doc.save('cellulose-profibcell-'+(p.no||'projet')+'.pdf');
@@ -2095,6 +2117,7 @@ CC_injectUI(CC_boot);
     lastOpenDims:null,          // dernières dims d'ouverture (saisie en série)
     angleAnn:null,              // annotation d'angle/pente (outil Angle)
     clip:null, undo:[], moving:null,  // copier/coller, annuler, déplacement
+    selId:null, selIds:[], band:null, // sélection (multiple) + bande de sélection
     imgW:0, imgH:0,
     pdfDoc:null, imgSrc:null, loadToken:0,
     pages:[], cur:0,
@@ -2137,9 +2160,13 @@ CC_injectUI(CC_boot);
     return null;
   }
   function translateMeasure(m,dx,dy){ if(Array.isArray(m.pts))m.pts=m.pts.map(function(q){return {x:q.x+dx,y:q.y+dy};}); }
+  function setSel(ids){ S.selIds=(ids||[]).slice(); S.selId=S.selIds.length?S.selIds[S.selIds.length-1]:null; }
+  function isSel(id){ return S.selIds.indexOf(id)>=0; }
+  function measurePoint(m){ if(m.geomType==='opening'&&(m.oShape==='point'||m.oShape==='round'||!m.oShape))return m.pts[0]; return centroid(m.pts); }
+  function ptInRect(p,r){ return p.x>=Math.min(r.x0,r.x1)&&p.x<=Math.max(r.x0,r.x1)&&p.y>=Math.min(r.y0,r.y1)&&p.y<=Math.max(r.y0,r.y1); }
   function hitVertex(m,p){ var tol=10/(S.zoom||1); for(var i=0;i<m.pts.length;i++){ if(Math.hypot(p.x-m.pts[i].x,p.y-m.pts[i].y)<tol)return i; } return -1; }
   function pushUndo(){ try{S.undo.push(JSON.stringify(S.measures)); if(S.undo.length>40)S.undo.shift();}catch(e){} }
-  function doUndo(){ if(!S.undo.length)return; var prev=S.undo.pop(); try{S.measures=JSON.parse(prev); S.pages[S.cur].measures=S.measures; S.selId=null; renderItems(); redraw();}catch(e){} }
+  function doUndo(){ if(!S.undo.length)return; var prev=S.undo.pop(); try{S.measures=JSON.parse(prev); S.pages[S.cur].measures=S.measures; setSel([]); renderItems(); redraw();}catch(e){} }
   function cloneMeasure(m,offset){ var c=JSON.parse(JSON.stringify(m)); c.id=idc++; c.sent=false; if(offset&&Array.isArray(c.pts))c.pts=c.pts.map(function(q){return {x:q.x+offset,y:q.y+offset};}); return c; }
   function slopeFactor(p){ p=parseFloat(p)||0; return p>0?Math.sqrt(1+(p/12)*(p/12)):1; }
   function slopedArea(m){ return (m.areaM2||0)*slopeFactor(m.pente); }
@@ -2212,6 +2239,10 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-sec-name{flex:1;background:#0f151c;border:1px solid #2e3a48;border-radius:6px;color:#e6edf3;padding:6px 8px;font-size:13px;}'+
     '#GPM_overlay .gpm-sec-del{width:30px;height:30px;border:1px solid #3a2730;background:#2a1a20;color:#fca5a5;border-radius:6px;cursor:pointer;font-size:15px;line-height:1;}'+
     '#GPM_overlay .gpm-sec-del:hover{background:#3a2027;color:#fff;}'+
+    '#GPM_overlay .gpm-colorrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;}'+
+    '#GPM_overlay .gpm-sw{width:26px;height:26px;border-radius:6px;border:2px solid #2e3a48;cursor:pointer;padding:0;}'+
+    '#GPM_overlay .gpm-sw.on{border-color:#fff;box-shadow:0 0 0 2px #60a5fa;}'+
+    '#GPM_overlay .gpm-sw-auto{width:auto;padding:0 8px;background:#222c38;color:#cbd5e1;font-size:11px;}'+
     '#GPM_overlay .gpm-hd .gpm-send:hover{background:#3ec971;color:#0b0f14;}'+
     '#GPM_overlay .gpm-close{background:#222c38;border:1px solid #2e3a48;color:#e6edf3;width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;}'+
     '#GPM_overlay .gpm-main{flex:1;display:flex;min-height:0;}'+
@@ -2385,6 +2416,7 @@ CC_injectUI(CC_boot);
       '<label>Nom (optionnel)</label><input type="text" id="GPM_opName" placeholder="F101">'+
       '<div id="GPM_opDims"></div>'+
       '<label>Section</label><div id="GPM_opSecs" class="gpm-chkgrp"></div>'+
+      '<label>Couleur</label><div id="GPM_opColor" class="gpm-colorrow"></div>'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_opCancel">Annuler</button><button class="gpm-cancel" id="GPM_opOkNew">Enreg. + nouveau</button><button class="gpm-ok" id="GPM_opOk">Enregistrer</button></div>'+
     '</div></div>'+
     // modale nom/rôle (après tracé ligne/surface)
@@ -2397,6 +2429,7 @@ CC_injectUI(CC_boot);
       '<label>Membranes</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0 0 6px"><input type="checkbox" id="GPM_rmMemInt" style="width:auto"> Membrane intérieure</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0"><input type="checkbox" id="GPM_rmMemExt" style="width:auto"> Membrane extérieure</label>'+
+      '<label>Couleur</label><div id="GPM_rmColor" class="gpm-colorrow"></div>'+
       '<div id="GPM_rmPenteRow" style="display:none"><label>Pente (x:12) — surface/ligne inclinée, vide = à plat <span id="GPM_rmPenteDeg" style="color:#8896a5"></span></label><input type="number" id="GPM_rmPente" step="any" placeholder="ex. 6"></div>'+
       '<div id="GPM_rmHRow" style="display:none"><label>Hauteur pour cette mesure (<span class="gpm-ou">m</span>) — vide = globale</label><input type="number" id="GPM_rmH" step="any"></div>'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_rmCancel">Annuler</button><button class="gpm-ok" id="GPM_rmOk">Enregistrer</button></div>'+
@@ -2493,7 +2526,7 @@ CC_injectUI(CC_boot);
     renderPageImage(pg).then(function(){
       S.imgW=pg.imgW; S.imgH=pg.imgH; S.scalePxPerM=pg.scalePxPerM; S.measures=pg.measures;
       S.angleAnn=pg.angleAnn||null;
-      S.drawing=null; S.selId=null;
+      S.drawing=null; setSel([]); S.band=null;
       draw.setAttribute('width',S.imgW); draw.setAttribute('height',S.imgH); draw.setAttribute('viewBox','0 0 '+S.imgW+' '+S.imgH);
       var sr=stage.getBoundingClientRect();
       S.zoom=Math.min((sr.width-80)/S.imgW,(sr.height-80)/S.imgH,1)||1;
@@ -2543,7 +2576,7 @@ CC_injectUI(CC_boot);
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-tool[data-tool]'),function(b){b.classList.toggle('active',b.dataset.tool===t);});
     updSubActive();
     var oMode={rect:'Ouverture <b>rectangle</b> : 2 coins opposés.',point:'Ouverture <b>par point</b> : clique l\'emplacement, puis les dimensions.',poly:'Ouverture <b>forme libre</b> : clique les sommets, double-clic pour fermer.',round:'Ouverture <b>ronde</b> : clique le centre puis un point du bord.'};
-    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>forme libre</b> : clique les sommets, double-clic pour fermer.')+' (sous-outils au survol de l\'icône · <b>R</b>)',opening:(oMode[S.openMode]||oMode.rect)+' (sous-outils au survol · <b>R</b>)',pan:'Glisse pour déplacer (ou clic-molette).',select:'Clique une mesure pour la sélectionner, puis <b>glisse</b> pour la déplacer. Ctrl/Cmd+C/V/X, Suppr, Ctrl/Cmd+Z.',angle:'Angle &amp; pente : clique <b>3 points</b> (le 2e = le sommet). Astuce : 1er segment à l\'horizontale pour lire la pente du toit.'};
+    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>forme libre</b> : clique les sommets, double-clic pour fermer.')+' (sous-outils au survol de l\'icône · <b>R</b>)',opening:(oMode[S.openMode]||oMode.rect)+' (sous-outils au survol · <b>R</b>)',pan:'Glisse pour déplacer (ou clic-molette).',select:'Sélection : clique une mesure (glisse pour déplacer). <b>Shift</b>+clic ou glisser une zone vide = sélection multiple. <b>Double-clic</b> = modifier. Ctrl/Cmd+C/V/X, Suppr, Ctrl/Cmd+Z.',angle:'Angle &amp; pente : clique <b>3 points</b> (le 2e = le sommet). Astuce : 1er segment à l\'horizontale pour lire la pente du toit.'};
     var h=gid('GPM_hint'); h.innerHTML=hints[t]||''; h.classList.toggle('show',!!hints[t]);
     redraw();
   }
@@ -2584,7 +2617,7 @@ CC_injectUI(CC_boot);
     if(d.geom==='area'&&d.pts.length<3){S.drawing=null;redraw();return;}
     var m={id:idc++,geomType:d.geom,pts:d.pts,name:'',apps:[],secIds:[],memInt:false,memExt:false,height:null,rect:false,sent:false};
     if(d.geom==='line')m.lengthM=lineLenM(d.pts); else m.areaM2=areaM2(d.pts);
-    S.measures.push(m); S.selId=m.id; S.drawing=null;
+    S.measures.push(m); setSel([m.id]); S.drawing=null;
     redraw(); renderItems(); renderPageTabs();
     openRoleModal(m,true);
   }
@@ -2595,7 +2628,7 @@ CC_injectUI(CC_boot);
     var pts=[{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
     var m={id:idc++,geomType:'area',pts:pts,name:'',apps:[],secIds:[],memInt:false,memExt:false,height:null,rect:true,sent:false,
       rectWM:Math.abs(b.x-a.x)/S.scalePxPerM, rectHM:Math.abs(b.y-a.y)/S.scalePxPerM, areaM2:areaM2(pts)};
-    S.measures.push(m); S.selId=m.id; S.drawing=null;
+    S.measures.push(m); setSel([m.id]); S.drawing=null;
     redraw(); renderItems(); renderPageTabs(); openRoleModal(m,true);
   }
   function finishOpening(){
@@ -2630,6 +2663,7 @@ CC_injectUI(CC_boot);
     return '<label>'+label+' (po)</label><input type="number" id="GPM_op'+key+'_po" step="any" value="'+(Math.round(m/IN_M*100)/100)+'">';
   }
   function opReadM(key){ var po=parseFloat((gid('GPM_op'+key+'_po')||{}).value)||0; return po*IN_M; }
+  var openPendingColor='';
   function openOpeningModal(center, owM, ohM, traced, shape){
     shape=shape||'point';
     var modal=gid('GPM_openModal'), name=gid('GPM_opName'), dims=gid('GPM_opDims'), secsBox=gid('GPM_opSecs');
@@ -2647,6 +2681,8 @@ CC_injectUI(CC_boot);
     }
     var secItems=ccSecItems();
     fillChkGroup(secsBox, secItems, [secItems[0].id]);
+    openPendingColor='';
+    renderSwatches(gid('GPM_opColor'), '', function(c){ openPendingColor=c||''; });
     modal.classList.add('show'); setTimeout(function(){name.focus();},30);
     function doSave(){
       var sids=readChkGroup(secsBox); if(!sids.length)sids=[secItems[0].id];
@@ -2666,7 +2702,8 @@ CC_injectUI(CC_boot);
         }
         S.lastOpenDims={W:W,H:H};
       }
-      S.measures.push(m); S.selId=m.id;
+      if(openPendingColor)m.color=openPendingColor;
+      S.measures.push(m); setSel([m.id]);
       renderItems(); redraw(); renderPageTabs();
       return traced?{traced:true}:{W:m.owM,H:m.ohM};
     }
@@ -2691,6 +2728,7 @@ CC_injectUI(CC_boot);
     fillChkGroup(secsBox, secItems, (m.secIds&&m.secIds.length)?m.secIds:[secItems[0].id]);
     gid('GPM_rmMemInt').checked=!!m.memInt;
     gid('GPM_rmMemExt').checked=!!m.memExt;
+    renderSwatches(gid('GPM_rmColor'), m.color||'', function(c){ m.color=c; redraw(); });
     var hRow=gid('GPM_rmHRow');
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-ou'),function(s){s.textContent=lenUnit();});
     function updH(){
@@ -2733,7 +2771,16 @@ CC_injectUI(CC_boot);
   }
 
   // ═══════════════════════════ Rendu SVG ════════════════════════════════
-  function measColor(m){ var a=(m.apps&&m.apps[0]); if(a&&APP_BY_ID[a])return APP_BY_ID[a].color; return m.geomType==='opening'?'#2dd4bf':'#64748b'; }
+  function measColor(m){ if(m.color)return m.color; var a=(m.apps&&m.apps[0]); if(a&&APP_BY_ID[a])return APP_BY_ID[a].color; return m.geomType==='opening'?'#2dd4bf':'#64748b'; }
+  var GPM_PALETTE=['#4ade80','#2dd4bf','#60a5fa','#a78bfa','#fb7185','#f59e0b','#f97316','#e6edf3'];
+  function renderSwatches(box, current, onPick){
+    if(!box)return;
+    box.innerHTML='<button type="button" class="gpm-sw gpm-sw-auto'+(!current?' on':'')+'" data-c="">Auto</button>'+
+      GPM_PALETTE.map(function(c){return '<button type="button" class="gpm-sw'+(current===c?' on':'')+'" data-c="'+c+'" style="background:'+c+'"></button>';}).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('.gpm-sw'),function(b){
+      b.onclick=function(){ onPick(b.dataset.c||''); renderSwatches(box,b.dataset.c||'',onPick); };
+    });
+  }
   // Groupes de cases à cocher (application, section)
   function fillChkGroup(container, items, checkedIds){
     container.innerHTML=items.map(function(it){
@@ -2784,7 +2831,7 @@ CC_injectUI(CC_boot);
     if(!draw)return;
     var svg='';
     S.measures.forEach(function(m){
-      var col=measColor(m), sel=S.selId===m.id;
+      var col=measColor(m), sel=isSel(m.id);
       if(m.geomType==='opening'){
         if(m.oShape==='poly'&&m.pts.length>=2){
           var ps=m.pts.map(function(q){return q.x+','+q.y;}).join(' ');
@@ -2862,6 +2909,10 @@ CC_injectUI(CC_boot);
       svg+='<rect x="'+(acx-lw/2)+'" y="'+(acy-10)+'" width="'+lw+'" height="20" rx="4" fill="#f59e0b"/>';
       svg+='<text x="'+acx+'" y="'+(acy+4)+'" fill="#1a1206" font-size="12" font-weight="bold" font-family="monospace" text-anchor="middle">'+txt+'</text>';
     }
+    if(S.band){
+      var bx=Math.min(S.band.x0,S.band.x1),by=Math.min(S.band.y0,S.band.y1),bw=Math.abs(S.band.x1-S.band.x0),bh=Math.abs(S.band.y1-S.band.y0);
+      svg+='<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" fill="rgba(96,165,250,.12)" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="5 3"/>';
+    }
     draw.innerHTML=svg;
   }
 
@@ -2888,7 +2939,7 @@ CC_injectUI(CC_boot);
       var sids=(m.secIds&&m.secIds.length)?m.secIds:(m.secId?[m.secId]:[]);
       if(sids.length)tags+='<div style="font-size:10px;color:#8896a5;margin-top:3px">'+sids.map(secName).join(' · ')+'</div>';
       if(m.sent)tags+='<div style="font-size:10px;color:#4ade80;margin-top:3px">✓ déjà envoyée</div>';
-      var d=document.createElement('div'); d.className='gpm-item'+(S.selId===m.id?' sel':'');
+      var d=document.createElement('div'); d.className='gpm-item'+(isSel(m.id)?' sel':'');
       d.innerHTML='<div class="gpm-dot" style="background:'+col+'"></div>'+
         '<div class="gpm-ib"><div class="gpm-iname">'+nameTxt+'</div><div class="gpm-imeas">'+geomTxt+'</div>'+tags+'</div>'+
         '<button class="gpm-idel gpm-iedit" title="Éditer" style="font-size:13px">✎</button>'+
@@ -2897,7 +2948,7 @@ CC_injectUI(CC_boot);
       d.querySelector('.gpm-iedit').onclick=function(ev){ev.stopPropagation(); if(m.geomType==='opening')editOpening(m); else openRoleModal(m,false);};
       d.querySelector('.gpm-idup').onclick=function(ev){ev.stopPropagation();duplicateMeasure(m.id);};
       d.querySelector('.gpm-idelbtn').onclick=function(ev){ev.stopPropagation();deleteMeasure(m.id);};
-      d.onclick=function(){S.selId=S.selId===m.id?null:m.id;renderItems();redraw();};
+      d.onclick=function(ev){ if(ev.shiftKey){ var ix=S.selIds.indexOf(m.id); if(ix>=0)S.selIds.splice(ix,1); else S.selIds.push(m.id); setSel(S.selIds);} else { setSel(isSel(m.id)&&S.selIds.length===1?[]:[m.id]); } renderItems();redraw();};
       box.appendChild(d);
     });
   }
@@ -2912,13 +2963,23 @@ CC_injectUI(CC_boot);
     var name=gid('GPM_opName'), secsBox=gid('GPM_opSecs');
     if(name)name.value=m.name||'';
     if(secsBox)fillChkGroup(secsBox, ccSecItems(), (m.secIds&&m.secIds.length)?m.secIds:(m.secId?[m.secId]:[]));
+    openPendingColor=m.color||'';
+    renderSwatches(gid('GPM_opColor'), openPendingColor, function(c){ openPendingColor=c||''; });
     var okBtn=gid('GPM_opOk'); var prev=okBtn.onclick;
     okBtn.onclick=function(){ deleteMeasure(m.id); prev(); };
   }
   function deleteMeasure(id){
     pushUndo();
     S.measures=S.measures.filter(function(x){return x.id!==id;}); S.pages[S.cur].measures=S.measures;
-    if(S.selId===id)S.selId=null;
+    if(isSel(id))setSel(S.selIds.filter(function(x){return x!==id;}));
+    renderItems(); redraw(); renderPageTabs();
+  }
+  function deleteSelected(){
+    if(!S.selIds.length)return;
+    pushUndo();
+    var rm={}; S.selIds.forEach(function(id){rm[id]=1;});
+    S.measures=S.measures.filter(function(x){return !rm[x.id];}); S.pages[S.cur].measures=S.measures;
+    setSel([]);
     renderItems(); redraw(); renderPageTabs();
   }
   function duplicateMeasure(id){
@@ -2929,7 +2990,7 @@ CC_injectUI(CC_boot);
     c.name=(src.name?src.name:(src.geomType==='opening'?'Ouverture':src.geomType==='area'?'Surface':'Ligne'))+' (copie)';
     // décale légèrement les points pour rendre la copie visible
     if(Array.isArray(c.pts))c.pts=c.pts.map(function(p){return {x:p.x+14,y:p.y+14};});
-    S.measures.push(c); S.selId=c.id;
+    S.measures.push(c); setSel([c.id]);
     renderItems(); redraw();
   }
 
@@ -3038,15 +3099,18 @@ CC_injectUI(CC_boot);
       if(!apps.length)return; // rien à générer sans application
       var hM=measHeightM(m);
       secIds.forEach(function(secId){
+        if(m.geomType==='line'){
+          // Une ligne → Murs, UNE FOIS par section (peu importe le nombre d'applications
+          // de ligne cochées : mur/cloison/périmètre pointent toutes vers Murs). Évite le doublon.
+          var nseg=m.pts.length-1;
+          for(var i=0;i<nseg;i++){ var len=segLenM(m.pts[i],m.pts[i+1])*slopeFactor(m.pente); if(len<=0)continue;
+            var rm=CC_defaultRow('murs'); rm.secId=secId;
+            rm.label=(m.name||'Mur')+(nseg>1?' #'+(i+1):'')+suf; setDim(rm,'l',len); setDim(rm,'h',hM);
+            CC_rows.murs.push(rm); touched.murs=1; count++; }
+          return;
+        }
         apps.forEach(function(app){
-          if(m.geomType==='line'){
-            // une ligne Murs par segment (mur / cloison / périmètre → murs)
-            var nseg=m.pts.length-1;
-            for(var i=0;i<nseg;i++){ var len=segLenM(m.pts[i],m.pts[i+1])*slopeFactor(m.pente); if(len<=0)continue;
-              var rm=CC_defaultRow('murs'); rm.secId=secId;
-              rm.label=(m.name||'Mur')+(nseg>1?' #'+(i+1):'')+suf; setDim(rm,'l',len); setDim(rm,'h',hM);
-              CC_rows.murs.push(rm); touched.murs=1; count++; }
-          } else { // area
+          { // area
             var lbl=(m.name||'Surface')+suf;
             if(app==='perimetre'){
               // murs par segment du contour (polygone fermé) × hauteur
@@ -3100,16 +3164,24 @@ CC_injectUI(CC_boot);
       if(p.x<0||p.x>S.imgW||p.y<0||p.y>S.imgH)return;
       if(S.tool==='select'){
         if(S.angleAnn&&hitAngleLabel(p)){ S.moving={angle:true,last:p,moved:false}; return; }
-        var sel=S.measures.find(function(x){return x.id===S.selId;});
-        // 1) déplacer l'étiquette de la mesure sélectionnée
-        if(sel&&hitLabel(sel,p)){ S.moving={id:sel.id,last:p,moved:false,label:true}; redraw(); return; }
-        // 2) déplacer un sommet (surfaces, lignes, ouvertures poly/rect)
-        var vEdit=sel&&(sel.geomType!=='opening'||sel.oShape==='poly'||sel.oShape==='rect');
-        if(vEdit){ var vi=hitVertex(sel,p); if(vi>=0){ var mv={id:sel.id,last:p,moved:false,vtx:vi}; if(sel.oShape==='rect'){var opp=sel.pts[(vi+2)%4];mv.anchor={x:opp.x,y:opp.y};} S.moving=mv; redraw(); return; } }
-        // 3) sélectionner / déplacer la mesure entière
+        var sel=(S.selIds.length===1)?S.measures.find(function(x){return x.id===S.selId;}):null;
+        // Édition fine (étiquette / sommet) uniquement quand UNE seule mesure est sélectionnée
+        if(sel){
+          if(hitLabel(sel,p)){ S.moving={id:sel.id,last:p,moved:false,label:true}; redraw(); return; }
+          var vEdit=(sel.geomType!=='opening'||sel.oShape==='poly'||sel.oShape==='rect');
+          if(vEdit){ var vi=hitVertex(sel,p); if(vi>=0){ var mv={id:sel.id,last:p,moved:false,vtx:vi}; if(sel.oShape==='rect'){var opp=sel.pts[(vi+2)%4];mv.anchor={x:opp.x,y:opp.y};} S.moving=mv; redraw(); return; } }
+        }
         var hit=hitMeasure(p);
-        if(hit){ S.selId=hit.id; S.moving={id:hit.id,last:p,moved:false,vtx:null}; }
-        else { S.selId=null; S.moving=null; }
+        if(e.shiftKey){
+          if(hit){ var ix=S.selIds.indexOf(hit.id); if(ix>=0)S.selIds.splice(ix,1); else S.selIds.push(hit.id); setSel(S.selIds); }
+          renderItems(); redraw(); return;
+        }
+        if(hit){
+          if(!isSel(hit.id))setSel([hit.id]); // sinon : garde la sélection de groupe pour la déplacer
+          S.moving={group:true,ids:S.selIds.slice(),last:p,moved:false};
+        } else {
+          S.band={x0:p.x,y0:p.y,x1:p.x,y1:p.y}; setSel([]); // démarre une bande de sélection
+        }
         renderItems(); redraw(); return;
       }
       if((S.tool==='line'||S.tool==='area')&&!S.scalePxPerM){ alert('Cale d\'abord l\'échelle.'); setTool('scale'); return; }
@@ -3136,10 +3208,16 @@ CC_injectUI(CC_boot);
       }
     });
     stage.addEventListener('mousemove',function(e){
+      if(S.band){ var pb=toImg(e); S.band.x1=pb.x; S.band.y1=pb.y; redraw(); return; }
       if(S.moving){
         var pm=toImg(e);
         if(S.moving.angle){ var ai=angleLabelInfo(); if(ai&&S.angleAnn){ S.angleAnn.off={dx:pm.x-ai.bx,dy:pm.y-ai.by}; if(S.pages[S.cur])S.pages[S.cur].angleAnn=S.angleAnn; } S.moving.last=pm; redraw(); return; }
         if(!S.moving.moved){pushUndo();S.moving.moved=true;}
+        if(S.moving.group){
+          var dgx=pm.x-S.moving.last.x, dgy=pm.y-S.moving.last.y;
+          S.moving.ids.forEach(function(id){var mm=S.measures.find(function(x){return x.id===id;}); if(mm)translateMeasure(mm,dgx,dgy);});
+          S.moving.last=pm; redraw(); return;
+        }
         var m=S.measures.find(function(x){return x.id===S.moving.id;});
         if(m){
           if(S.moving.label){
@@ -3166,11 +3244,23 @@ CC_injectUI(CC_boot);
       if(panning){S.panX=e.clientX-panning.x;S.panY=e.clientY-panning.y;applyTransform();return;}
       if(S.drawing){S.hover=toImg(e);redraw();}
     });
-    window.addEventListener('mouseup',function(e){if(e.button===1)midPan=false;if(!midPan)panning=null;if(S.moving)S.moving=null;});
-    stage.addEventListener('dblclick',function(){
-      if(S.drawing&&S.tool==='line')finishMeasure();
-      else if(S.drawing&&S.tool==='area'&&S.areaMode==='poly'&&S.drawing.pts.length>=3)finishMeasure();
-      else if(S.drawing&&S.tool==='opening'&&S.openMode==='poly'&&S.drawing.pts.length>=3)finishPolyOpening();
+    window.addEventListener('mouseup',function(e){
+      if(e.button===1)midPan=false; if(!midPan)panning=null;
+      if(S.band){
+        var r=S.band, big=(Math.abs(r.x1-r.x0)>4||Math.abs(r.y1-r.y0)>4);
+        if(big){ var ids=S.measures.filter(function(m){return ptInRect(measurePoint(m),r);}).map(function(m){return m.id;}); setSel(ids); }
+        S.band=null; renderItems(); redraw();
+      }
+      if(S.moving)S.moving=null;
+    });
+    stage.addEventListener('dblclick',function(e){
+      if(S.drawing&&S.tool==='line'){finishMeasure();return;}
+      if(S.drawing&&S.tool==='area'&&S.areaMode==='poly'&&S.drawing.pts.length>=3){finishMeasure();return;}
+      if(S.drawing&&S.tool==='opening'&&S.openMode==='poly'&&S.drawing.pts.length>=3){finishPolyOpening();return;}
+      if(!S.drawing){
+        var p=toImg(e); var hit=hitMeasure(p);
+        if(hit){ setSel([hit.id]); if(hit.geomType==='opening')editOpening(hit); else openRoleModal(hit,false); renderItems(); redraw(); }
+      }
     });
     stage.addEventListener('auxclick',function(e){if(e.button===1)e.preventDefault();});
   }
@@ -3182,12 +3272,12 @@ CC_injectUI(CC_boot);
       var mod=e.ctrlKey||e.metaKey;
       if(mod&&!inField){
         var k=(e.key||'').toLowerCase();
-        if(k==='c'&&S.selId!=null){ var mc=S.measures.find(function(x){return x.id===S.selId;}); if(mc)S.clip=JSON.parse(JSON.stringify(mc)); e.preventDefault(); return; }
-        if(k==='x'&&S.selId!=null){ var mx=S.measures.find(function(x){return x.id===S.selId;}); if(mx){S.clip=JSON.parse(JSON.stringify(mx)); deleteMeasure(S.selId);} e.preventDefault(); return; }
-        if(k==='v'&&S.clip){ pushUndo(); var c=cloneMeasure(S.clip,16); S.measures.push(c); S.selId=c.id; renderItems(); redraw(); e.preventDefault(); return; }
+        if(k==='c'&&S.selIds.length){ S.clip=S.selIds.map(function(id){return JSON.parse(JSON.stringify(S.measures.find(function(x){return x.id===id;})));}).filter(Boolean); e.preventDefault(); return; }
+        if(k==='x'&&S.selIds.length){ S.clip=S.selIds.map(function(id){return JSON.parse(JSON.stringify(S.measures.find(function(x){return x.id===id;})));}).filter(Boolean); deleteSelected(); e.preventDefault(); return; }
+        if(k==='v'&&S.clip&&S.clip.length){ pushUndo(); var nid=[]; (Array.isArray(S.clip)?S.clip:[S.clip]).forEach(function(src){var c=cloneMeasure(src,16);S.measures.push(c);nid.push(c.id);}); setSel(nid); renderItems(); redraw(); e.preventDefault(); return; }
         if(k==='z'){ doUndo(); e.preventDefault(); return; }
       }
-      if((e.key==='Backspace'||e.key==='Delete')&&S.selId!=null&&!inField){e.preventDefault();deleteMeasure(S.selId);return;}
+      if((e.key==='Backspace'||e.key==='Delete')&&S.selIds.length&&!inField){e.preventDefault();deleteSelected();return;}
       if(e.key==='Enter'&&S.drawing&&(S.tool==='line'||(S.tool==='area'&&S.areaMode==='poly')))finishMeasure();
       if(e.key==='Enter'&&S.drawing&&S.tool==='opening'&&S.openMode==='poly'&&S.drawing.pts.length>=3)finishPolyOpening();
       if((e.key==='r'||e.key==='R')&&S.tool==='area'&&!inField){ S.areaMode=S.areaMode==='rect'?'poly':'rect'; S.drawing=null; setTool('area'); }
@@ -3294,6 +3384,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure };
   }
 })();
