@@ -2149,8 +2149,9 @@ CC_injectUI(CC_boot);
   // ── Formatage ───────────────────────────────────────────────────────────
   function lenUnit(){return S.unit==='metric'?'m':'pi';}
   function lenVal(m){return S.unit==='metric'?m:m/FT_M;}
+  function trimNum(v,d){ var s=(Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toFixed(d); return s.indexOf('.')>=0?s.replace(/\.?0+$/,''):s; }
   function fmtFtIn(feet){ var s=feet<0?-1:1; feet=Math.abs(feet); var ft=Math.floor(feet); var inch=Math.round((feet-ft)*12); if(inch>=12){ft++;inch-=12;} return (s<0?'-':'')+ft+' pi '+inch+' po'; }
-  function fmtLen(m){ if(S.unit==='metric')return m.toFixed(2)+' m'; var feet=m/FT_M; return S.impFmt==='ftin'?fmtFtIn(feet):feet.toFixed(2)+' pi'; }
+  function fmtLen(m){ if(S.unit==='metric')return m.toFixed(2)+' m'; var feet=m/FT_M; if(S.impFmt==='ftin')return fmtFtIn(feet); if(S.impFmt==='in')return trimNum(feet*12,3)+' po'; return feet.toFixed(2)+' pi'; }
   function fmtArea(m2){return S.unit==='metric'?m2.toFixed(2)+' m²':(m2*M2_FT2).toFixed(1)+' pi²';}
 
   // ── Géométrie ─────────────────────────────────────────────────────────
@@ -2417,11 +2418,12 @@ CC_injectUI(CC_boot);
           '<h3>Échelle</h3>'+
           '<div class="gpm-scale no" id="GPM_scaleStatus">Non calée</div>'+
           '<div class="gpm-unit"><button class="active" id="GPM_uMetric">métrique</button><button id="GPM_uImp">impérial</button></div>'+
-          '<div class="gpm-unit" id="GPM_fmtSeg" style="display:none"><button class="active" id="GPM_fmtDec">0.5 pi</button><button id="GPM_fmtFtin">pi + po</button></div>'+
+          '<div class="gpm-unit" id="GPM_fmtSeg" style="display:none"><button class="active" id="GPM_fmtDec">0.5 pi</button><button id="GPM_fmtFtin">pi + po</button><button id="GPM_fmtIn">po</button></div>'+
           '<div class="gpm-hrow"><span>Hauteur murs</span><input type="number" id="GPM_globalH" step="any" value="8"><span id="GPM_globalHUnit">pi</span></div>'+
         '</div>'+
         '<div class="gpm-sec" style="flex:1;display:flex;flex-direction:column;min-height:0;padding:0">'+
           '<h3 style="padding:13px 14px 8px">Mesures <span id="GPM_count" style="float:right;color:#e6edf3"></span></h3>'+
+          '<div id="GPM_batchBar" style="display:none;padding:0 14px 8px;gap:6px;align-items:center"></div>'+
           '<div class="gpm-items" id="GPM_itemsBox"><div class="gpm-empty-items">Aucune mesure.<br>Cale l\'échelle puis trace.</div></div>'+
         '</div>'+
       '</div>'+
@@ -2439,6 +2441,7 @@ CC_injectUI(CC_boot);
       '<h4>Ouverture</h4>'+
       '<label>Nom (optionnel)</label><input type="text" id="GPM_opName" placeholder="F101">'+
       '<div id="GPM_opDims"></div>'+
+      '<label>Quantité</label><input type="number" id="GPM_opQty" min="1" step="1" value="1">'+
       '<label>Section</label><div id="GPM_opSecs" class="gpm-chkgrp"></div>'+
       '<label>Couleur</label><div id="GPM_opColor" class="gpm-colorrow"></div>'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_opCancel">Annuler</button><button class="gpm-cancel" id="GPM_opOkNew">Enreg. + nouveau</button><button class="gpm-ok" id="GPM_opOk">Enregistrer</button></div>'+
@@ -2483,7 +2486,8 @@ CC_injectUI(CC_boot);
       '</div>'+
       '<div id="GPM_aiStatus" style="font-size:13px;color:#cbd5e1;margin-bottom:8px"></div>'+
       '<div id="GPM_aiReview"></div>'+
-      '<div id="GPM_aiSecRow" style="display:none;margin-top:8px"><label>Section</label><div id="GPM_aiSecs" class="gpm-chkgrp"></div></div>'+
+      '<div id="GPM_aiSecRow" style="display:none;margin-top:8px"><label>Section</label><div id="GPM_aiSecs" class="gpm-chkgrp"></div>'+
+        '<div style="display:flex;gap:6px;margin-top:6px"><input type="text" id="GPM_aiNewSec" placeholder="Nouvelle section (ex. Étage)" style="flex:1"><button class="gpm-cancel" id="GPM_aiAddSec">+ Section</button></div></div>'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_aiCancel">Fermer</button><button class="gpm-ok" id="GPM_aiApply" style="display:none">Appliquer (au plan)</button><button class="gpm-ok" id="GPM_aiApplyInject" style="display:none">Appliquer et injecter</button></div>'+
     '</div></div>';
     document.body.appendChild(ov);
@@ -2636,7 +2640,10 @@ CC_injectUI(CC_boot);
     var e=gid('GPM_scaleStatus');
     if(!S.scalePxPerM){e.className='gpm-scale no';e.textContent='Non calée — outil Échelle';return;}
     e.className='gpm-scale ok';
-    e.textContent='✓ Calée — '+(S.unit==='metric'?S.scalePxPerM.toFixed(1)+' px/m':(S.scalePxPerM*FT_M).toFixed(1)+' px/pi');
+    var perUnit=(S.unit==='metric')?S.scalePxPerM:(S.scalePxPerM*FT_M), u=(S.unit==='metric')?'px/m':'px/pi';
+    e.innerHTML='✓ Calée — <input id="GPM_scaleEdit" type="number" step="any" value="'+(Math.round(perUnit*100)/100)+'" title="Ajuster l\'échelle" style="width:76px;background:#0f151c;border:1px solid #2e3a48;border-radius:5px;color:#e6edf3;padding:2px 5px;font-size:12px"> '+u;
+    var inp=gid('GPM_scaleEdit');
+    if(inp)inp.onchange=function(){ var v=parseFloat(inp.value); if(v>0){ S.scalePxPerM=(S.unit==='metric')?v:(v/FT_M); if(S.pages[S.cur])S.pages[S.cur].scalePxPerM=S.scalePxPerM; renderItems(); redraw(); } updScaleStatus(); };
   }
   function finishScale(){
     redraw();
@@ -2725,7 +2732,7 @@ CC_injectUI(CC_boot);
     shape=shape||'point';
     var modal=gid('GPM_openModal'), name=gid('GPM_opName'), dims=gid('GPM_opDims'), secsBox=gid('GPM_opSecs');
     var opBox=modal.querySelector('.gpm-modal'); if(opBox&&opBox._resetDrag)opBox._resetDrag();
-    name.value='';
+    name.value=''; gid('GPM_opQty').value=1;
     if(traced){
       dims.innerHTML='<label>Forme '+(traced.shape==='round'?'ronde':'libre')+'</label>'+
         '<div style="background:#0f151c;border:1px solid #2e3a48;border-radius:8px;padding:8px 10px;font-size:13px;color:#cbd5e1">'+
@@ -2760,6 +2767,7 @@ CC_injectUI(CC_boot);
         S.lastOpenDims={W:W,H:H};
       }
       if(openPendingColor)m.color=openPendingColor;
+      var q=parseInt(gid('GPM_opQty').value,10)||1; if(q>1)m.qty=q; else delete m.qty;
       S.measures.push(m); setSel([m.id]);
       renderItems(); redraw(); renderPageTabs();
       return traced?{traced:true}:{W:m.owM,H:m.ohM};
@@ -2965,6 +2973,14 @@ CC_injectUI(CC_boot);
     renderItems(); redraw();
     return made;
   }
+  function aiAddSection(){
+    var inp=gid('GPM_aiNewSec'); var v=(inp.value||'').trim(); if(!v)return;
+    if(typeof CC_sections==='undefined'){ alert('Calculateur introuvable.'); return; }
+    var id='s'+Date.now(); CC_sections.push({id:id,name:v}); ccSecRefresh();
+    var cur=readChkGroup(gid('GPM_aiSecs')); cur.push(id);
+    fillChkGroup(gid('GPM_aiSecs'), ccSecItems(), cur);
+    inp.value='';
+  }
   // « Appliquer » : crée les mesures (tampon) et reste sur le plan.
   function aiApply(){
     var ms=aiBuildMeasures();
@@ -2982,7 +2998,7 @@ CC_injectUI(CC_boot);
   }
   function measLabel(m){
     var pre=m.name?m.name+' · ':'';
-    if(m.geomType==='opening')return (m.oShape==='poly'||m.oShape==='round')?((m.name||'Ouv.')+' '+fmtArea(m.areaM2)):((m.name||'Ouv.')+' '+fmtLen(m.owM)+' × '+fmtLen(m.ohM));
+    if(m.geomType==='opening'){ var q=(m.qty&&m.qty>1)?(' ×'+m.qty):''; return (m.oShape==='poly'||m.oShape==='round')?((m.name||'Ouv.')+' '+fmtArea(m.areaM2)+q):((m.name||'Ouv.')+' '+fmtLen(m.owM)+' × '+fmtLen(m.ohM)+q); }
     if(m.geomType==='area')return pre+fmtArea(m.areaM2);
     return pre+fmtLen(m.lengthM);
   }
@@ -3084,7 +3100,7 @@ CC_injectUI(CC_boot);
     S.measures.forEach(function(m){
       var col=measColor(m);
       var nameTxt=m.geomType==='opening'?(m.name||'Ouverture'):(m.name||(m.geomType==='area'?'Surface':(m.geomType==='ruler'?'Mesure':'Ligne')));
-      var geomTxt=m.geomType==='opening'?((m.oShape==='poly'||m.oShape==='round')?(fmtArea(m.areaM2)+' · pér. '+fmtLen(m.perimM||0)):(fmtLen(m.owM)+' × '+fmtLen(m.ohM))):(m.geomType==='area'?(m.pente>0?fmtArea(slopedArea(m))+' (pente '+m.pente+':12)':fmtArea(m.areaM2)):(m.pente>0?fmtLen(m.lengthM*slopeFactor(m.pente))+' (pente '+m.pente+':12)':fmtLen(m.lengthM)));
+      var geomTxt=m.geomType==='opening'?(((m.oShape==='poly'||m.oShape==='round')?(fmtArea(m.areaM2)+' · pér. '+fmtLen(m.perimM||0)):(fmtLen(m.owM)+' × '+fmtLen(m.ohM)))+((m.qty&&m.qty>1)?(' ×'+m.qty):'')):(m.geomType==='area'?(m.pente>0?fmtArea(slopedArea(m))+' (pente '+m.pente+':12)':fmtArea(m.areaM2)):(m.pente>0?fmtLen(m.lengthM*slopeFactor(m.pente))+' (pente '+m.pente+':12)':fmtLen(m.lengthM)));
       if(m.geomType==='line'){var nseg=m.pts.length-1; geomTxt+=' · '+nseg+' seg.';}
       var tags='';
       if(m.geomType!=='opening'){
@@ -3111,6 +3127,23 @@ CC_injectUI(CC_boot);
       d.onclick=function(ev){ if(ev.shiftKey){ var ix=S.selIds.indexOf(m.id); if(ix>=0)S.selIds.splice(ix,1); else S.selIds.push(m.id); setSel(S.selIds);} else { setSel(isSel(m.id)&&S.selIds.length===1?[]:[m.id]); } renderItems();redraw();};
       box.appendChild(d);
     });
+    renderBatchBar();
+  }
+  function renderBatchBar(){
+    var bar=gid('GPM_batchBar'); if(!bar)return;
+    var n=S.selIds.length;
+    if(n<1){ bar.style.display='none'; bar.innerHTML=''; return; }
+    var secs=ccSecItems();
+    bar.style.display='flex';
+    bar.innerHTML='<span style="font-size:12px;color:#8896a5;white-space:nowrap">'+n+' sél.</span>'+
+      '<select id="GPM_batchSec" style="flex:1"><option value="">Affecter à la section…</option>'+
+      secs.map(function(s){return '<option value="'+s.id+'">'+escAttr(s.name)+'</option>';}).join('')+'</select>';
+    gid('GPM_batchSec').onchange=function(){ if(this.value)applySectionToSelected(this.value); };
+  }
+  function applySectionToSelected(sid){
+    pushUndo();
+    S.measures.forEach(function(m){ if(isSel(m.id)){ m.secIds=[sid]; if('secId' in m)m.secId=sid; } });
+    renderItems(); redraw();
   }
   // ré-édition d'une ouverture (nom + dims + section)
   function editOpening(m){
@@ -3122,6 +3155,7 @@ CC_injectUI(CC_boot);
     }
     var name=gid('GPM_opName'), secsBox=gid('GPM_opSecs');
     if(name)name.value=m.name||'';
+    var q=gid('GPM_opQty'); if(q)q.value=m.qty||1;
     if(secsBox)fillChkGroup(secsBox, ccSecItems(), (m.secIds&&m.secIds.length)?m.secIds:(m.secId?[m.secId]:[]));
     openPendingColor=m.color||'';
     renderSwatches(gid('GPM_opColor'), openPendingColor, function(c){ openPendingColor=c||''; });
@@ -3166,8 +3200,8 @@ CC_injectUI(CC_boot);
   }
   function setImpFmt(f){
     S.impFmt=f;
-    var d=gid('GPM_fmtDec'), t=gid('GPM_fmtFtin');
-    if(d)d.classList.toggle('active',f==='dec'); if(t)t.classList.toggle('active',f==='ftin');
+    var d=gid('GPM_fmtDec'), t=gid('GPM_fmtFtin'), n=gid('GPM_fmtIn');
+    if(d)d.classList.toggle('active',f==='dec'); if(t)t.classList.toggle('active',f==='ftin'); if(n)n.classList.toggle('active',f==='in');
     renderItems(); redraw();
   }
 
@@ -3548,6 +3582,7 @@ CC_injectUI(CC_boot);
     gid('GPM_uImp').onclick=function(){setUnit('imperial');};
     gid('GPM_fmtDec').onclick=function(){setImpFmt('dec');};
     gid('GPM_fmtFtin').onclick=function(){setImpFmt('ftin');};
+    gid('GPM_fmtIn').onclick=function(){setImpFmt('in');};
     gid('GPM_globalH').oninput=function(e){var v=parseFloat(e.target.value);if(v>0)S.ceilingH=S.unit==='metric'?v:v*FT_M;};
     gid('GPM_pageName').oninput=function(e){if(S.pages[S.cur]){S.pages[S.cur].name=e.target.value||('Page '+(S.cur+1));renderPageTabs();}};
     gid('GPM_closeBtn').onclick=function(){GPM_close();};
@@ -3558,6 +3593,7 @@ CC_injectUI(CC_boot);
     gid('GPM_aiSaveUrl').onclick=function(){ aiSetUrl(gid('GPM_aiUrl').value.trim()); gid('GPM_aiCfg').style.display=aiProxyUrl()?'none':'block'; gid('GPM_aiStatus').textContent=aiProxyUrl()?'URL enregistrée. Encadre un tableau d\'ouvertures sur le plan.':'URL vide.'; };
     gid('GPM_aiCancel').onclick=function(){gid('GPM_aiModal').classList.remove('show');};
     gid('GPM_aiApply').onclick=function(){ aiApply(); }; gid('GPM_aiApplyInject').onclick=function(){ aiApplyInject(); };
+    gid('GPM_aiAddSec').onclick=function(){ aiAddSection(); };
     gid('GPM_secNew').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();addSecFromTakeoff();}if(e.key==='Escape'){e.stopPropagation();gid('GPM_secModal').classList.remove('show');}});
     bindStage(); bindKeys();
     ['GPM_scaleModal','GPM_roleModal','GPM_openModal'].forEach(function(id){
@@ -3614,6 +3650,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening };
   }
 })();
