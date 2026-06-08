@@ -2125,7 +2125,7 @@ CC_injectUI(CC_boot);
 
   // ── État ───────────────────────────────────────────────────────────────
   var S={
-    unit:'metric', impFmt:'dec', aiMode:'opening', tool:null, drawTool:'line',
+    unit:'metric', impFmt:'dec', aiMode:'opening', scaleMode:'draw', tool:null, drawTool:'line',
     zoom:1, panX:40, panY:40, drawing:null, hover:null,
     areaMode:'poly',            // 'poly' | 'rect' pour l'outil Surface
     openMode:'rect',            // 'rect' | 'point' | 'poly' | 'round' pour l'outil Ouverture
@@ -2376,9 +2376,14 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-chkgrp input{width:auto;}'+
     '#GPM_overlay .gpm-kbd{font-size:13px;color:#e6edf3;max-height:60vh;overflow:auto;}'+
     '#GPM_overlay .gpm-kbd-h{color:#8896a5;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px;}'+
-    '#GPM_overlay .gpm-kbd-row{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:baseline;padding:3px 0;border-bottom:1px solid #1f2832;}'+
-    '#GPM_overlay .gpm-kbd-d{text-align:right;color:#e6edf3;}'+
+    '#GPM_overlay .gpm-kbd-row{display:grid;grid-template-columns:auto auto;justify-content:start;gap:18px;align-items:baseline;padding:3px 0;border-bottom:1px solid #1f2832;}'+
+    '#GPM_overlay .gpm-kbd-d{text-align:left;color:#e6edf3;}'+
     '#GPM_overlay .gpm-kbd-k{font-family:monospace;color:#fbbf24;white-space:nowrap;text-align:left;}'+
+    '#GPM_overlay .gpm-xform{position:absolute;right:14px;top:64px;display:flex;flex-direction:column;gap:6px;background:rgba(26,33,43,.95);border:1px solid #2e3a48;border-radius:10px;padding:8px;z-index:30;box-shadow:0 8px 22px rgba(0,0,0,.5);}'+
+    '#GPM_overlay .gpm-xform-h{font-size:9px;color:#8896a5;text-transform:uppercase;letter-spacing:.5px;text-align:center;margin-bottom:2px;}'+
+    '#GPM_overlay .gpm-xform button{width:40px;height:40px;border:1px solid #2e3a48;background:#222c38;color:#cbd5e1;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;}'+
+    '#GPM_overlay .gpm-xform button:hover{color:#fff;border-color:#8896a5;background:#28323f;}'+
+    '#GPM_overlay .gpm-xform button svg{width:19px;height:19px;}'+
     '';
     var st=document.createElement('style'); st.id='GPM_style'; st.textContent=css; document.head.appendChild(st);
   }
@@ -2403,7 +2408,13 @@ CC_injectUI(CC_boot);
       '<div class="gpm-tools">'+
         '<button class="gpm-tool" id="GPM_t_upload" title="Charger ou changer le plan">'+svgIco('<path d="M12 16V4m0 0L8 8m4-4l4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>')+'Plan</button>'+
         '<div class="gpm-tool-sep"></div>'+
-        '<button class="gpm-tool" id="GPM_t_scale" data-tool="scale" disabled title="Caler l\'échelle (e)">'+svgIco('<path d="M3 12h18M3 9v6M21 9v6M8 10v4M13 10v4M18 10v4"/>')+'Échelle</button>'+
+        '<div class="gpm-tool-wrap">'+
+          '<button class="gpm-tool" id="GPM_t_scale" data-tool="scale" disabled title="Caler l\'échelle (e) — survole pour Tracer / Spécifier">'+svgIco('<path d="M3 12h18M3 9v6M21 9v6M8 10v4M13 10v4M18 10v4"/>')+'Échelle</button>'+
+          '<div class="gpm-flyout">'+
+            '<button class="gpm-sub gpm-sub-txt" data-tool="scale" data-sub="draw" title="Tracer 2 points sur une cote connue">'+svgIco('<path d="M4 20L20 4"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="4" r="2"/>')+'Tracer</button>'+
+            '<button class="gpm-sub gpm-sub-txt" data-tool="scale" data-sub="spec" title="Spécifier px/pi directement">'+svgIco('<path d="M4 7h16M4 12h16M4 17h10"/>')+'Spécifier</button>'+
+          '</div>'+
+        '</div>'+
         '<button class="gpm-tool" id="GPM_t_line" data-tool="line" disabled title="Ligne multi-segments (l)">'+svgIco('<path d="M4 20L20 4"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="4" r="2"/>')+'Ligne</button>'+
         '<button class="gpm-tool" id="GPM_t_ruler" data-tool="ruler" disabled title="Mesure (règle, non injectée) (m)">'+svgIco('<path d="M3 17L17 3l4 4L7 21z"/><path d="M7 11l2 2M11 7l2 2M9 15l1.5 1.5"/>')+'Mesure</button>'+
         '<div class="gpm-tool-wrap">'+
@@ -2444,6 +2455,13 @@ CC_injectUI(CC_boot);
         '<div class="gpm-hintbar" id="GPM_hint"></div>'+
         '<div class="gpm-pagebar" id="GPM_pagebar" style="display:none"></div>'+
         '<div class="gpm-zoom" id="GPM_zoomctl" style="display:none"><button id="GPM_zoomOut">−</button><span id="GPM_zoomLbl">100%</span><button id="GPM_zoomIn">+</button></div>'+
+        '<div class="gpm-xform" id="GPM_xform" style="display:none">'+
+          '<div class="gpm-xform-h">Transformer</div>'+
+          '<button id="GPM_xfX" title="Symétrie horizontale (Shift+H)">'+svgIco('<path d="M12 3v18M7 8l-4 4 4 4M17 8l4 4-4 4"/>')+'</button>'+
+          '<button id="GPM_xfY" title="Symétrie verticale (Shift+V)">'+svgIco('<path d="M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4"/>')+'</button>'+
+          '<button id="GPM_xf90" title="Rotation 90° horaire">'+svgIco('<path d="M21 12a9 9 0 11-3-6.7M21 3v5h-5"/>')+'</button>'+
+          '<button id="GPM_xfA" title="Rotation par angle">'+svgIco('<path d="M4 20h16M4 20L16 8M4 20a10 10 0 0010-10"/>')+'</button>'+
+        '</div>'+
       '</div>'+
       '<div class="gpm-panel">'+
         '<div class="gpm-sec">'+
@@ -2469,7 +2487,7 @@ CC_injectUI(CC_boot);
       '<h4 id="GPM_smTitle">Distance réelle entre les 2 points</h4>'+
       '<div style="font-size:12px;color:#8896a5;margin-bottom:10px" id="GPM_smSub">Entre la mesure connue indiquée sur le plan.</div>'+
       '<div id="GPM_smDims"></div>'+
-      '<div style="font-size:12px;color:#8896a5;margin:12px 0 4px">— ou échelle directe —</div>'+
+      '<div style="font-size:12px;color:#8896a5;margin:12px 0 4px" id="GPM_smSep">— ou échelle directe —</div>'+
       '<label id="GPM_smDirectLbl">px par pi</label>'+
       '<input type="number" id="GPM_smDirect" step="any" placeholder="ex. 30.5 (laisser vide pour utiliser les 2 points)">'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_smCancel">Annuler</button><button class="gpm-ok" id="GPM_smOk">Caler</button></div>'+
@@ -2547,6 +2565,8 @@ CC_injectUI(CC_boot);
         kbdRow('← / →','Page précédente / suivante')+
         kbdRow('Shift + E','Envoyer vers le calculateur')+kbdRow('Shift + P','Renommer la page')+kbdRow('Shift + R','Renommer la dernière forme')+
         kbdRow('Shift + Alt + S','Gérer les sections')+kbdRow('Shift + Alt + P','Téléverser un plan')+
+        '<div class="gpm-kbd-h">Transformations (sélection)</div>'+
+        kbdRow('Shift + H','Symétrie horizontale')+kbdRow('Shift + V','Symétrie verticale')+
       '</div>'+
       '<div class="gpm-mbtns"><button class="gpm-ok" id="GPM_kbdClose">Fermer</button></div>'+
     '</div></div>';
@@ -2675,6 +2695,7 @@ CC_injectUI(CC_boot);
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-sub'),function(b){
       var on=(b.dataset.tool==='area'&&S.tool==='area'&&b.dataset.sub===S.areaMode)||
              (b.dataset.tool==='opening'&&S.tool==='opening'&&b.dataset.sub===S.openMode)||
+             (b.dataset.tool==='scale'&&S.tool==='scale'&&b.dataset.sub===(S.scaleMode||'draw'))||
              (b.dataset.tool==='aiselect'&&S.tool==='aiselect'&&b.dataset.sub===S.aiMode);
       b.classList.toggle('active',on);
     });
@@ -2682,6 +2703,7 @@ CC_injectUI(CC_boot);
   function selectSub(tool,sub){
     var tbId=tool==='opening'?'GPM_t_open':('GPM_t_'+tool);
     var tb=gid(tbId); if(tb&&tb.disabled)return;
+    if(tool==='scale'){ if(sub==='spec'){ openScaleSpec(); return; } S.scaleMode='draw'; setTool('scale'); return; }
     if(tool==='area')S.areaMode=sub; else if(tool==='opening')S.openMode=sub; else if(tool==='aiselect')S.aiMode=sub;
     S.drawing=null; setTool(tool);
   }
@@ -2708,28 +2730,42 @@ CC_injectUI(CC_boot);
     var inp=gid('GPM_scaleEdit');
     if(inp)inp.onchange=function(){ var v=parseFloat(inp.value); if(v>0){ S.scalePxPerM=(S.unit==='metric')?v:(v/FT_M); if(S.pages[S.cur])S.pages[S.cur].scalePxPerM=S.scalePxPerM; renderItems(); redraw(); } updScaleStatus(); };
   }
-  function finishScale(){
+  function finishScale(){ showScaleModal('draw'); }
+  function openScaleSpec(){ showScaleModal('spec'); }
+  function showScaleModal(mode){
     redraw();
     var modal=gid('GPM_scaleModal');
     var smBox=modal.querySelector('.gpm-modal'); if(smBox&&smBox._resetDrag)smBox._resetDrag();
-    var dims=gid('GPM_smDims');
-    if(S.unit==='metric'){
-      dims.innerHTML='<label>en millimètres (mm)</label><input type="number" id="GPM_smMM" step="any" value="3000">';
-      gid('GPM_smDirectLbl').textContent='px par mètre';
+    var dims=gid('GPM_smDims'), sub=gid('GPM_smSub'), title=gid('GPM_smTitle');
+    var spec=(mode==='spec');
+    if(spec){
+      title.textContent='Spécifier l\'échelle';
+      sub.textContent='Entre directement le ratio px par '+(S.unit==='metric'?'mètre':'pi')+'.';
+      dims.innerHTML=''; dims.style.display='none';
     } else {
-      dims.innerHTML='<label>en pieds et pouces (ex. 10 pi 4 po, ou 124 po)</label>'+
-        '<div style="display:flex;gap:8px;align-items:center"><input type="number" id="GPM_smFt" step="any" placeholder="pi" style="flex:1"><span style="color:#8896a5">pi</span>'+
-        '<input type="number" id="GPM_smIn" step="any" placeholder="po" style="flex:1"><span style="color:#8896a5">po</span></div>';
-      gid('GPM_smDirectLbl').textContent='px par pi';
+      title.textContent='Distance réelle entre les 2 points';
+      sub.textContent='Entre la mesure connue indiquée sur le plan.';
+      dims.style.display='';
+      if(S.unit==='metric'){
+        dims.innerHTML='<label>en millimètres (mm)</label><input type="number" id="GPM_smMM" step="any" value="3000">';
+      } else {
+        dims.innerHTML='<label>en pieds et pouces (ex. 10 pi 4 po, ou 124 po)</label>'+
+          '<div style="display:flex;gap:8px;align-items:center"><input type="number" id="GPM_smFt" step="any" placeholder="pi" style="flex:1"><span style="color:#8896a5">pi</span>'+
+          '<input type="number" id="GPM_smIn" step="any" placeholder="po" style="flex:1"><span style="color:#8896a5">po</span></div>';
+      }
     }
+    gid('GPM_smDirectLbl').textContent='px par '+(S.unit==='metric'?'mètre':'pi');
+    gid('GPM_smSep').style.display=spec?'none':'';
     gid('GPM_smDirect').value='';
     modal.classList.add('show');
-    setTimeout(function(){ var f=gid(S.unit==='metric'?'GPM_smMM':'GPM_smFt'); if(f){f.focus();f.select&&f.select();} },30);
+    setTimeout(function(){ var f=gid(spec?'GPM_smDirect':(S.unit==='metric'?'GPM_smMM':'GPM_smFt')); if(f){f.focus();f.select&&f.select();} },30);
     function flag(id){ var e=gid(id); if(e)e.style.borderColor='#f87171'; }
     function confirm(){
       var direct=parseFloat(gid('GPM_smDirect').value);
       if(direct&&direct>0){
         S.scalePxPerM=(S.unit==='metric')?direct:(direct/FT_M);
+      } else if(spec){
+        flag('GPM_smDirect'); return;
       } else {
         var realM;
         if(S.unit==='metric'){ var mm=parseFloat(gid('GPM_smMM').value); if(!mm||mm<=0){flag('GPM_smMM');return;} realM=mm/1000; }
@@ -2744,7 +2780,7 @@ CC_injectUI(CC_boot);
     }
     function cancel(){S.drawing=null;redraw();modal.classList.remove('show');cleanup();}
     function onKey(e){if(e.key==='Enter')confirm();if(e.key==='Escape'){e.stopPropagation();cancel();}}
-    function cleanup(){gid('GPM_smOk').onclick=null;gid('GPM_smCancel').onclick=null;modal.removeEventListener('keydown',onKey);}
+    function cleanup(){gid('GPM_smOk').onclick=null;gid('GPM_smCancel').onclick=null;modal.removeEventListener('keydown',onKey);dims.style.display='';}
     gid('GPM_smOk').onclick=confirm; gid('GPM_smCancel').onclick=cancel; modal.addEventListener('keydown',onKey);
   }
 
@@ -3123,6 +3159,15 @@ CC_injectUI(CC_boot);
     if(m.geomType==='area')return pre+fmtArea(m.areaM2);
     return pre+fmtLen(m.lengthM);
   }
+  function snapHV(last,p,shift){
+    if(!last)return p;
+    var dx=p.x-last.x, dy=p.y-last.y, adx=Math.abs(dx), ady=Math.abs(dy);
+    if(shift){ return (adx>=ady)?{x:p.x,y:last.y}:{x:last.x,y:p.y}; } // Shift = forcer droit
+    var T=0.09; // aide douce ~5°
+    if(adx>0&&ady/adx<T)return {x:p.x,y:last.y};
+    if(ady>0&&adx/ady<T)return {x:last.x,y:p.y};
+    return p;
+  }
   function redraw(){
     if(!draw)return;
     var svg='';
@@ -3250,7 +3295,7 @@ CC_injectUI(CC_boot);
       d.ondblclick=function(ev){ ev.stopPropagation(); if(m.geomType==='opening')editOpening(m); else openRoleModal(m,false); };
       box.appendChild(d);
     });
-    renderBatchBar();
+    renderBatchBar(); updateXform();
   }
   function renderBatchBar(){
     var bar=gid('GPM_batchBar'); if(!bar)return;
@@ -3263,6 +3308,40 @@ CC_injectUI(CC_boot);
       secs.map(function(s){return '<option value="'+s.id+'">'+escAttr(s.name)+'</option>';}).join('')+'</select>';
     gid('GPM_batchSec').onchange=function(){ if(this.value)applySectionToSelected(this.value); };
   }
+  // ─── Transformations (symétrie / rotation) sur la sélection ───
+  function selIdsActive(){ return S.selIds.length?S.selIds.slice():(S.selId?[S.selId]:[]); }
+  function selBBoxCenter(ids){
+    var xs=[],ys=[]; ids.forEach(function(id){var m=S.measures.find(function(x){return x.id===id;}); if(m&&m.pts)m.pts.forEach(function(p){xs.push(p.x);ys.push(p.y);});});
+    if(!xs.length)return null;
+    return {cx:(Math.min.apply(null,xs)+Math.max.apply(null,xs))/2, cy:(Math.min.apply(null,ys)+Math.max.apply(null,ys))/2};
+  }
+  function recomputeMeasure(m){
+    if(m.geomType==='area')m.areaM2=areaM2(m.pts);
+    else if(m.geomType==='line'||m.geomType==='ruler')m.lengthM=lineLenM(m.pts);
+    else if(m.geomType==='opening'){
+      if(m.oShape==='poly'){ m.areaM2=areaM2(m.pts); m.perimM=lineLenM(m.pts.concat([m.pts[0]])); }
+      else if(m.oShape==='rect'&&m.pts.length>=4&&S.scalePxPerM){ var xs=m.pts.map(function(p){return p.x;}),ys=m.pts.map(function(p){return p.y;}); m.owM=(Math.max.apply(null,xs)-Math.min.apply(null,xs))/S.scalePxPerM; m.ohM=(Math.max.apply(null,ys)-Math.min.apply(null,ys))/S.scalePxPerM; }
+    }
+  }
+  function transformSelected(fn){
+    var ids=selIdsActive(); if(!ids.length)return 0;
+    var c=selBBoxCenter(ids); if(!c)return 0;
+    pushUndo();
+    ids.forEach(function(id){ var m=S.measures.find(function(x){return x.id===id;}); if(!m||!m.pts)return;
+      m.pts=m.pts.map(function(p){return fn(p,c);});
+      if(m.geomType==='area')m.rect=false;
+      recomputeMeasure(m);
+    });
+    renderItems(); redraw(); return ids.length;
+  }
+  function flipXSel(){ return transformSelected(function(p,c){return {x:2*c.cx-p.x,y:p.y};}); }
+  function flipYSel(){ return transformSelected(function(p,c){return {x:p.x,y:2*c.cy-p.y};}); }
+  function rotateSel(deg){ var r=deg*Math.PI/180, cs=Math.cos(r), sn=Math.sin(r); return transformSelected(function(p,c){var dx=p.x-c.cx,dy=p.y-c.cy; return {x:c.cx+dx*cs-dy*sn, y:c.cy+dx*sn+dy*cs};}); }
+  function rotateSelPrompt(){
+    var v=(typeof window!=='undefined'&&window.prompt)?window.prompt('Rotation en degrés (sens horaire) :','90'):null;
+    if(v==null)return; var d=parseFloat(v); if(!isNaN(d)&&d!==0)rotateSel(d);
+  }
+  function updateXform(){ var x=gid('GPM_xform'); if(x)x.style.display=selIdsActive().length?'flex':'none'; }
   function applySectionToSelected(sid){
     pushUndo();
     S.measures.forEach(function(m){ if(isSel(m.id)){ m.secIds=[sid]; if('secId' in m)m.secId=sid; } });
@@ -3490,6 +3569,10 @@ CC_injectUI(CC_boot);
       var p=toImg(e);
       if(p.x<0||p.x>S.imgW||p.y<0||p.y>S.imgH)return;
       if(S.tool==='aiselect'){ S.band={x0:p.x,y0:p.y,x1:p.x,y1:p.y,ai:true}; setSel([]); redraw(); return; }
+      if(S.drawing&&S.drawing.pts&&S.drawing.pts.length){
+        var _poly=(S.tool==='line'||S.tool==='ruler'||(S.tool==='area'&&S.areaMode==='poly')||(S.tool==='opening'&&S.openMode==='poly'));
+        if(_poly)p=snapHV(S.drawing.pts[S.drawing.pts.length-1],p,e.shiftKey);
+      }
       if(S.tool==='select'){
         if(S.angleAnn&&hitAngleLabel(p)){ S.moving={angle:true,last:p,moved:false}; return; }
         var sel=(S.selIds.length===1)?S.measures.find(function(x){return x.id===S.selId;}):null;
@@ -3571,7 +3654,12 @@ CC_injectUI(CC_boot);
         S.moving.last=pm; redraw(); return;
       }
       if(panning){S.panX=e.clientX-panning.x;S.panY=e.clientY-panning.y;applyTransform();return;}
-      if(S.drawing){S.hover=toImg(e);redraw();}
+      if(S.drawing){
+        var hp=toImg(e);
+        var poly=(S.tool==='line'||S.tool==='ruler'||(S.tool==='area'&&S.areaMode==='poly')||(S.tool==='opening'&&S.openMode==='poly'));
+        S.hover=(poly&&S.drawing.pts&&S.drawing.pts.length)?snapHV(S.drawing.pts[S.drawing.pts.length-1],hp,e.shiftKey):hp;
+        redraw();
+      }
     });
     window.addEventListener('mouseup',function(e){
       if(e.button===1)midPan=false; if(!midPan)panning=null;
@@ -3645,6 +3733,8 @@ CC_injectUI(CC_boot);
         if(kk==='e'){ openSendPanel(); e.preventDefault(); return; }
         if(kk==='p'){ var pn=gid('GPM_pageName'); if(pn){pn.focus();pn.select();} e.preventDefault(); return; }
         if(kk==='r'){ renameLastShape(); e.preventDefault(); return; }
+        if(kk==='h'){ flipXSel(); e.preventDefault(); return; }
+        if(kk==='v'){ flipYSel(); e.preventDefault(); return; }
         return;
       }
       // Flèches : changer de page
@@ -3720,6 +3810,8 @@ CC_injectUI(CC_boot);
     gid('GPM_secBtn').onclick=function(){openSecManager();};
     gid('GPM_kbdBtn').onclick=function(){gid('GPM_kbdModal').classList.add('show');};
     gid('GPM_kbdClose').onclick=function(){gid('GPM_kbdModal').classList.remove('show');};
+    gid('GPM_xfX').onclick=function(){flipXSel();}; gid('GPM_xfY').onclick=function(){flipYSel();};
+    gid('GPM_xf90').onclick=function(){rotateSel(90);}; gid('GPM_xfA').onclick=function(){rotateSelPrompt();};
     gid('GPM_secAdd').onclick=function(){addSecFromTakeoff();};
     gid('GPM_secClose').onclick=function(){gid('GPM_secModal').classList.remove('show');};
     gid('GPM_aiSaveUrl').onclick=function(){ aiSetUrl(gid('GPM_aiUrl').value.trim()); gid('GPM_aiCfg').style.display=aiProxyUrl()?'none':'block'; gid('GPM_aiStatus').textContent=aiProxyUrl()?'URL enregistrée. Encadre un tableau d\'ouvertures sur le plan.':'URL vide.'; };
@@ -3784,6 +3876,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiDetectSurfaces:aiDetectSurfaces, aiBuildSurfaces:aiBuildSurfaces, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening, liveDimSvg:liveDimSvg, addSectionInto:addSectionInto, finishScale:finishScale };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiDetectSurfaces:aiDetectSurfaces, aiBuildSurfaces:aiBuildSurfaces, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening, liveDimSvg:liveDimSvg, addSectionInto:addSectionInto, finishScale:finishScale, showScaleModal:showScaleModal, openScaleSpec:openScaleSpec, flipXSel:flipXSel, flipYSel:flipYSel, rotateSel:rotateSel, snapHV:snapHV, transformSelected:transformSelected };
   }
 })();
