@@ -2198,7 +2198,7 @@ CC_injectUI(CC_boot);
     }
     return centroid(m.pts);
   }
-  function kbdRow(k,d){ return '<div class="gpm-kbd-row"><span class="gpm-kbd-k">'+k+'</span><span>'+d+'</span></div>'; }
+  function kbdRow(k,d){ return '<div class="gpm-kbd-row"><span class="gpm-kbd-d">'+d+'</span><span class="gpm-kbd-k">'+k+'</span></div>'; }
   function labelSVG(cx,cy,text){
     var w=Math.max(70,text.length*6.5);
     return '<rect x="'+(cx-w/2)+'" y="'+(cy-9)+'" width="'+w+'" height="18" rx="4" fill="rgba(10,14,20,.85)"/>'+
@@ -2376,8 +2376,9 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-chkgrp input{width:auto;}'+
     '#GPM_overlay .gpm-kbd{font-size:13px;color:#e6edf3;max-height:60vh;overflow:auto;}'+
     '#GPM_overlay .gpm-kbd-h{color:#8896a5;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px;}'+
-    '#GPM_overlay .gpm-kbd-row{display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px solid #1f2832;}'+
-    '#GPM_overlay .gpm-kbd-k{font-family:monospace;color:#fbbf24;white-space:nowrap;}'+
+    '#GPM_overlay .gpm-kbd-row{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:baseline;padding:3px 0;border-bottom:1px solid #1f2832;}'+
+    '#GPM_overlay .gpm-kbd-d{text-align:right;color:#e6edf3;}'+
+    '#GPM_overlay .gpm-kbd-k{font-family:monospace;color:#fbbf24;white-space:nowrap;text-align:left;}'+
     '';
     var st=document.createElement('style'); st.id='GPM_style'; st.textContent=css; document.head.appendChild(st);
   }
@@ -2408,17 +2409,17 @@ CC_injectUI(CC_boot);
         '<div class="gpm-tool-wrap">'+
           '<button class="gpm-tool" id="GPM_t_area" data-tool="area" disabled title="Surface — survole pour les formes (r rect, t libre)">'+svgIco('<path d="M5 3l14 4-3 14-13-5z"/>')+'Surf.</button>'+
           '<div class="gpm-flyout">'+
-            '<button class="gpm-sub" data-tool="area" data-sub="rect" title="Rectangle">'+svgIco('<rect x="4" y="4" width="16" height="16" rx="1"/>')+'</button>'+
-            '<button class="gpm-sub" data-tool="area" data-sub="poly" title="Forme libre">'+svgIco('<path d="M4 8l5-5 9 3 4 9-7 6-9-4z"/>')+'</button>'+
+            '<button class="gpm-sub" data-tool="area" data-sub="rect" title="Rectangle (r)">'+svgIco('<rect x="4" y="4" width="16" height="16" rx="1"/>')+'</button>'+
+            '<button class="gpm-sub" data-tool="area" data-sub="poly" title="Forme libre (t)">'+svgIco('<path d="M4 8l5-5 9 3 4 9-7 6-9-4z"/>')+'</button>'+
           '</div>'+
         '</div>'+
         '<div class="gpm-tool-wrap">'+
           '<button class="gpm-tool" id="GPM_t_open" data-tool="opening" disabled title="Ouverture — survole pour les formes (o rect, i libre, p point)">'+svgIco('<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M5 12h14"/>')+'Ouvert.</button>'+
           '<div class="gpm-flyout">'+
-            '<button class="gpm-sub" data-tool="opening" data-sub="rect" title="Rectangle">'+svgIco('<rect x="5" y="3" width="14" height="18" rx="1"/>')+'</button>'+
-            '<button class="gpm-sub" data-tool="opening" data-sub="poly" title="Forme libre">'+svgIco('<path d="M4 8l5-5 9 3 4 9-7 6-9-4z"/>')+'</button>'+
+            '<button class="gpm-sub" data-tool="opening" data-sub="rect" title="Rectangle (o)">'+svgIco('<rect x="5" y="3" width="14" height="18" rx="1"/>')+'</button>'+
+            '<button class="gpm-sub" data-tool="opening" data-sub="poly" title="Forme libre (i)">'+svgIco('<path d="M4 8l5-5 9 3 4 9-7 6-9-4z"/>')+'</button>'+
             '<button class="gpm-sub" data-tool="opening" data-sub="round" title="Rond">'+svgIco('<circle cx="12" cy="12" r="9"/>')+'</button>'+
-            '<button class="gpm-sub" data-tool="opening" data-sub="point" title="Pointage">'+svgIco('<circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>')+'</button>'+
+            '<button class="gpm-sub" data-tool="opening" data-sub="point" title="Pointage (p)">'+svgIco('<circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>')+'</button>'+
             '<button class="gpm-sub" data-tool="aiselect" data-sub="opening" title="AI : détecter un tableau d\'ouvertures">'+svgIco('<path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/>')+'</button>'+
           '</div>'+
         '</div>'+
@@ -2467,8 +2468,10 @@ CC_injectUI(CC_boot);
     '<div class="gpm-modal-bg" id="GPM_scaleModal"><div class="gpm-modal">'+
       '<h4 id="GPM_smTitle">Distance réelle entre les 2 points</h4>'+
       '<div style="font-size:12px;color:#8896a5;margin-bottom:10px" id="GPM_smSub">Entre la mesure connue indiquée sur le plan.</div>'+
-      '<label id="GPM_smUnit">en millimètres (mm)</label>'+
-      '<input type="number" id="GPM_smInput" step="any">'+
+      '<div id="GPM_smDims"></div>'+
+      '<div style="font-size:12px;color:#8896a5;margin:12px 0 4px">— ou échelle directe —</div>'+
+      '<label id="GPM_smDirectLbl">px par pi</label>'+
+      '<input type="number" id="GPM_smDirect" step="any" placeholder="ex. 30.5 (laisser vide pour utiliser les 2 points)">'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_smCancel">Annuler</button><button class="gpm-ok" id="GPM_smOk">Caler</button></div>'+
     '</div></div>'+
     // barre ouverture
@@ -2694,7 +2697,7 @@ CC_injectUI(CC_boot);
   }
 
   // ═══════════════════════════ Échelle ══════════════════════════════════
-  function updScaleCTA(){ var sb=gid('GPM_t_scale'); if(sb)sb.classList.toggle('gpm-needscale', !S.scalePxPerM && S.tool!=='scale'); }
+  function updScaleCTA(){ var sb=gid('GPM_t_scale'); if(sb)sb.classList.toggle('gpm-needscale', !S.scalePxPerM); }
   function updScaleStatus(){
     updScaleCTA();
     var e=gid('GPM_scaleStatus');
@@ -2707,23 +2710,42 @@ CC_injectUI(CC_boot);
   }
   function finishScale(){
     redraw();
-    var modal=gid('GPM_scaleModal'), input=gid('GPM_smInput');
+    var modal=gid('GPM_scaleModal');
     var smBox=modal.querySelector('.gpm-modal'); if(smBox&&smBox._resetDrag)smBox._resetDrag();
-    gid('GPM_smUnit').textContent=S.unit==='metric'?'en millimètres (mm)':'en pouces';
-    input.value=S.unit==='metric'?'3000':'120';
-    modal.classList.add('show'); setTimeout(function(){input.focus();input.select();},30);
+    var dims=gid('GPM_smDims');
+    if(S.unit==='metric'){
+      dims.innerHTML='<label>en millimètres (mm)</label><input type="number" id="GPM_smMM" step="any" value="3000">';
+      gid('GPM_smDirectLbl').textContent='px par mètre';
+    } else {
+      dims.innerHTML='<label>en pieds et pouces (ex. 10 pi 4 po, ou 124 po)</label>'+
+        '<div style="display:flex;gap:8px;align-items:center"><input type="number" id="GPM_smFt" step="any" placeholder="pi" style="flex:1"><span style="color:#8896a5">pi</span>'+
+        '<input type="number" id="GPM_smIn" step="any" placeholder="po" style="flex:1"><span style="color:#8896a5">po</span></div>';
+      gid('GPM_smDirectLbl').textContent='px par pi';
+    }
+    gid('GPM_smDirect').value='';
+    modal.classList.add('show');
+    setTimeout(function(){ var f=gid(S.unit==='metric'?'GPM_smMM':'GPM_smFt'); if(f){f.focus();f.select&&f.select();} },30);
+    function flag(id){ var e=gid(id); if(e)e.style.borderColor='#f87171'; }
     function confirm(){
-      var v=parseFloat(input.value); if(!v||v<=0){input.style.borderColor='#f87171';return;}
-      var a=S.drawing.pts[0], b=S.drawing.pts[1], distPx=Math.hypot(b.x-a.x,b.y-a.y);
-      var realM=S.unit==='metric'?v/1000:v*IN_M;
-      S.scalePxPerM=distPx/realM; S.pages[S.cur].scalePxPerM=S.scalePxPerM;
+      var direct=parseFloat(gid('GPM_smDirect').value);
+      if(direct&&direct>0){
+        S.scalePxPerM=(S.unit==='metric')?direct:(direct/FT_M);
+      } else {
+        var realM;
+        if(S.unit==='metric'){ var mm=parseFloat(gid('GPM_smMM').value); if(!mm||mm<=0){flag('GPM_smMM');return;} realM=mm/1000; }
+        else { var ft=parseFloat(gid('GPM_smFt').value)||0, inch=parseFloat(gid('GPM_smIn').value)||0, totIn=ft*12+inch; if(totIn<=0){flag('GPM_smFt');flag('GPM_smIn');return;} realM=totIn*IN_M; }
+        if(!S.drawing||!S.drawing.pts||S.drawing.pts.length<2){ return; }
+        var a=S.drawing.pts[0], b=S.drawing.pts[1], distPx=Math.hypot(b.x-a.x,b.y-a.y); if(!distPx)return;
+        S.scalePxPerM=distPx/realM;
+      }
+      if(S.pages[S.cur])S.pages[S.cur].scalePxPerM=S.scalePxPerM;
       modal.classList.remove('show'); cleanup(); S.drawing=null;
       updScaleStatus(); redraw(); setTool(S.drawTool); renderPageTabs();
     }
     function cancel(){S.drawing=null;redraw();modal.classList.remove('show');cleanup();}
     function onKey(e){if(e.key==='Enter')confirm();if(e.key==='Escape'){e.stopPropagation();cancel();}}
-    function cleanup(){gid('GPM_smOk').onclick=null;gid('GPM_smCancel').onclick=null;input.removeEventListener('keydown',onKey);input.style.borderColor='';}
-    gid('GPM_smOk').onclick=confirm; gid('GPM_smCancel').onclick=cancel; input.addEventListener('keydown',onKey);
+    function cleanup(){gid('GPM_smOk').onclick=null;gid('GPM_smCancel').onclick=null;modal.removeEventListener('keydown',onKey);}
+    gid('GPM_smOk').onclick=confirm; gid('GPM_smCancel').onclick=cancel; modal.addEventListener('keydown',onKey);
   }
 
   // ═══════════════════════════ Finalisation mesures ═════════════════════
@@ -3762,6 +3784,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiDetectSurfaces:aiDetectSurfaces, aiBuildSurfaces:aiBuildSurfaces, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening, liveDimSvg:liveDimSvg, addSectionInto:addSectionInto };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiDetectSurfaces:aiDetectSurfaces, aiBuildSurfaces:aiBuildSurfaces, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening, liveDimSvg:liveDimSvg, addSectionInto:addSectionInto, finishScale:finishScale };
   }
 })();
