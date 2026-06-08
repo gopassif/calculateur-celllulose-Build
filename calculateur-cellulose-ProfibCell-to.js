@@ -1783,6 +1783,8 @@ function CC_doPDF(){
     sf(true,7,DARK);tx('CALCULATEUR DE CELLULOSE SOUFFL\u00c9E \u00b7 PROFIB CELL',LM+PW,4.5,{align:'right'});
     sf(false,6,INK_SOFT);tx('Projet n\u00b0 '+(p.no||'\u2014')+' \u00b7 '+dateStr,LM+PW,9,{align:'right'});
     hl(12,RULE,0.2);
+    sf(false,7,[37,99,235]);
+    try{doc.textWithLink('\u2191 Sommaire',LM,9,{pageNumber:1});}catch(e){tx('\u2191 Sommaire',LM,9);}
     fr(0,12,216,14,DARK);fr(0,12,2.5,14,DARK2);
     sf(true,14,WHITE);tx(title,6,22.5);
     sf(false,7,WHITE);tx('D\u00c9TAIL \u00b7 PAGE '+pg+' / '+tot,LM+PW,22.5,{align:'right'});
@@ -1815,6 +1817,9 @@ function CC_doPDF(){
   function pageCount(z){return Math.max(1,Math.ceil(bodyCount(z)/ROWS_PER_PAGE));}
   var PG_TOTAL=1+pageCount('grenier')+pageCount('plafonds')+pageCount('murs')+pageCount('pig')+pageCount('ouv');
   var pgn=0;
+  var anchors={};                 // clé zone -> n° de page de la zone
+  var zoneRowRects=[];            // rect de chaque ligne du tableau « Détail par zone » (page 1)
+  var ZKEYS=['grenier','plafonds','murs','pig','ouv'];
 
   function paginate(cfg){
     var chunks=[];for(var i=0;i<cfg.fullBody.length;i+=ROWS_PER_PAGE)chunks.push(cfg.fullBody.slice(i,i+ROWS_PER_PAGE));
@@ -1822,6 +1827,7 @@ function CC_doPDF(){
     chunks.forEach(function(chunk,idx){
       doc.addPage('letter','portrait');
       var yy=header(cfg.title,++pgn,PG_TOTAL);
+      if(idx===0&&cfg.anchor)anchors[cfg.anchor]=pgn;
       sf(false,8,INK_SOFT);tx(cfg.intro,LM,yy);yy+=8;
       var at=Object.assign({startY:yy,margin:{left:LM,right:LM},tableWidth:PW,head:[cfg.head],body:chunk,showFoot:'lastPage'},cfg.at);
       if(idx===chunks.length-1)at.foot=[cfg.foot];
@@ -1890,7 +1896,8 @@ function CC_doPDF(){
     body:zoneBody,
     styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,
     columnStyles:{0:{cellWidth:PW*0.54},1:{cellWidth:PW*0.26,halign:'right'},2:{cellWidth:PW*0.20,halign:'right'}},
-    didParseCell:function(data){if(data.column.index>=1)data.cell.styles.halign='right';}
+    didParseCell:function(data){if(data.column.index>=1)data.cell.styles.halign='right';if(data.section==='body'&&data.column.index===0)data.cell.styles.textColor=[37,99,235];},
+    didDrawCell:function(data){if(data.section==='body'&&data.column.index===0)zoneRowRects[data.row.index]={x:LM,y:data.cell.y,w:PW,h:data.cell.height};}
   });
   var aB=doc.lastAutoTable.finalY;
   // Bande sacs nets
@@ -1933,7 +1940,7 @@ function CC_doPDF(){
   var gRowFn=function(r){return [r.label||'\u2014',CC_pf(r.qty)||1,pSurf(r._surf||0),pR(r._rCalc||0),pEp(r._epCalc||0),intSac(r._sacs||0)];};
   var gSubFn=function(sec,rr){var o=subSurfSacs(sec,rr,2);return o.c.concat([{content:o.ss?pSurf(o.ss):'\u2014',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:intSac(o.sk),styles:SEC_SUB}]);};
   var gBody=CC_rows.grenier.length?(d.multiSection?grouped(CC_rows.grenier,6,gRowFn,gSubFn):CC_rows.grenier.map(gRowFn)):[['Aucune zone grenier saisie','','','','','']];
-  paginate({title:'Grenier / entretoit',intro:'Surface, valeur R, \u00e9paisseur et sacs par zone de grenier.',
+  paginate({anchor:'grenier',title:'Grenier / entretoit',intro:'Surface, valeur R, \u00e9paisseur et sacs par zone de grenier.',
     head:headG,fullBody:gBody,foot:['Total','',pSurf(Z.grenier.surf),'','',intSac(Z.grenier.sacs)],
     at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
       columnStyles:{0:{cellWidth:PW*0.34,halign:'left'}},
@@ -1943,7 +1950,7 @@ function CC_doPDF(){
   var headP=['Identification','Qt\u00e9','Surface ('+U_SURF+')','Valeur R'+(MM?' (RSI)':''),'Haut. poutr. ('+U_EP+')','Sacs'];
   var pRowFn=function(r){return [r.label||'\u2014',CC_pf(r.qty)||1,pSurf(r._surf||0),pR(r._rCalc||0),pEp(r._epCalc||0),intSac(r._sacs||0)];};
   var pBody=CC_rows.plafonds.length?(d.multiSection?grouped(CC_rows.plafonds,6,pRowFn,gSubFn):CC_rows.plafonds.map(pRowFn)):[['Aucun plafond-plancher saisi','','','','','']];
-  paginate({title:'Plafond-plancher',intro:'Surface, valeur R, hauteur de poutrelles et sacs par zone.',
+  paginate({anchor:'plafonds',title:'Plafond-plancher',intro:'Surface, valeur R, hauteur de poutrelles et sacs par zone.',
     head:headP,fullBody:pBody,foot:['Total','',pSurf(Z.plafonds.surf),'','',intSac(Z.plafonds.sacs)],
     at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
       columnStyles:{0:{cellWidth:PW*0.34,halign:'left'}},
@@ -1954,7 +1961,7 @@ function CC_doPDF(){
   var mRowFn=function(r){return [r.label||'\u2014',CC_pf(r.qty)||1,pDim(r.l_pi,r.l_po,r.l_mm),pDim(r.h_pi,r.h_po,r.h_mm),pSurf(r._surf||0),pR(r._rCalc||0),pEp(r._epCalc||0),intSac(r._sacs||0)];};
   var mSubFn=function(sec,rr){var o=subSurfSacs(sec,rr,4);return o.c.concat([{content:o.ss?pSurf(o.ss):'\u2014',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:intSac(o.sk),styles:SEC_SUB}]);};
   var mBody=CC_rows.murs.length?(d.multiSection?grouped(CC_rows.murs,8,mRowFn,mSubFn):CC_rows.murs.map(mRowFn)):[['Aucun mur rectangulaire saisi','','','','','','','']];
-  paginate({title:'Murs rectangulaires',intro:'Dimensions, surface, valeur R, \u00e9paisseur et sacs par mur.',
+  paginate({anchor:'murs',title:'Murs rectangulaires',intro:'Dimensions, surface, valeur R, \u00e9paisseur et sacs par mur.',
     head:headM,fullBody:mBody,foot:['Total','','','',pSurf(Z.murs.surf),'','',intSac(Z.murs.sacs)],
     at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
       columnStyles:{0:{cellWidth:PW*0.20,halign:'left'}},
@@ -1966,7 +1973,7 @@ function CC_doPDF(){
   var pgRowFn=function(r){return [r.label||'\u2014',CC_pf(r.qty)||1,typeLbl(r.type),pSurf(r._surf||0),pLen(r._seg||0),pEp(r._epCalc||0),intSac(r._sacs||0)];};
   var pgSubFn=function(sec,rr){var ss=0,sk=0;rr.forEach(function(r){ss+=r._surf||0;sk+=r._sacs||0;});return [{content:'Sous-total \u2014 '+sec.name,colSpan:3,styles:Object.assign({halign:'left'},SEC_SUB)},{content:ss?pSurf(ss):'\u2014',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:'',styles:SEC_SUB},{content:intSac(sk),styles:SEC_SUB}];};
   var pgBody=CC_rows.pig.length?(d.multiSection?grouped(CC_rows.pig,7,pgRowFn,pgSubFn):CC_rows.pig.map(pgRowFn)):[['Aucun pignon saisi','','','','','','']];
-  paginate({title:'Murs en pignon',intro:'Aires triangulaires (monopente, centr\u00e9, d\u00e9centr\u00e9), segment de pente, \u00e9paisseur et sacs.',
+  paginate({anchor:'pig',title:'Murs en pignon',intro:'Aires triangulaires (monopente, centr\u00e9, d\u00e9centr\u00e9), segment de pente, \u00e9paisseur et sacs.',
     head:headPg,fullBody:pgBody,foot:['Total','','',pSurf(Z.pig.surf),'','',intSac(Z.pig.sacs)],
     at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
       columnStyles:{0:{cellWidth:PW*0.22,halign:'left'},2:{cellWidth:PW*0.16,halign:'left'}},
@@ -1999,12 +2006,20 @@ function CC_doPDF(){
   var sumSeuilIn=0,sumPerimFt=0;
   CC_rows.ouv.forEach(function(r){var q=Math.max(1,CC_pf(r.qty)||1);var w=oPo(r.l_pi,r.l_po,r.l_mm);if(w>0)sumSeuilIn+=(w+12)*q;sumPerimFt+=(r._perim||0);});
   var oBody=CC_rows.ouv.length?(d.multiSection?grouped(CC_rows.ouv,10,oRowFn,oSubFn):CC_rows.ouv.map(oRowFn)):[['Aucune ouverture saisie','','','','','','','','','']];
-  paginate({title:'Ouvertures \u00e0 retrancher',intro:'Ruban de seuil (largeur + 12 po), p\u00e9rim\u00e8tre et surface (jeu inclus) retranch\u00e9e des murs.',
+  paginate({anchor:'ouv',title:'Ouvertures \u00e0 retrancher',intro:'Ruban de seuil (largeur + 12 po), p\u00e9rim\u00e8tre et surface (jeu inclus) retranch\u00e9e des murs.',
     head:headO,fullBody:oBody,
     foot:['Total','','','','',seuilDisp(sumSeuilIn),perimDisp(sumPerimFt),'','('+pSurf(Z.ouv.surf)+')','-'+intSac(Z.ouv.sacs)],
     at:{styles:tblStyles,headStyles:tblHead,bodyStyles:tblBody,alternateRowStyles:tblAlt,footStyles:tblFoot,
       columnStyles:{0:{cellWidth:PW*0.10,halign:'left'},1:{cellWidth:PW*0.11,halign:'left'}},
       didParseCell:function(data){if(data.section==='body'&&data.row.raw.length===1)return;if(data.column.index>=2)data.cell.styles.halign='right';}}});
+
+  // Hyperliens du sommaire (page 1) vers la page de chaque zone
+  try{
+    doc.setPage(1);
+    zoneRowRects.forEach(function(rc,i){
+      var key=ZKEYS[i]; if(rc&&anchors[key])doc.link(rc.x,rc.y,rc.w,rc.h,{pageNumber:anchors[key]});
+    });
+  }catch(e){}
 
   doc.save('cellulose-profibcell-'+(p.no||'projet')+'.pdf');
 }
@@ -2244,6 +2259,11 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-sw{width:26px;height:26px;border-radius:6px;border:2px solid #2e3a48;cursor:pointer;padding:0;}'+
     '#GPM_overlay .gpm-sw.on{border-color:#fff;box-shadow:0 0 0 2px #60a5fa;}'+
     '#GPM_overlay .gpm-sw-auto{width:auto;padding:0 8px;background:#222c38;color:#cbd5e1;font-size:11px;}'+
+    '#GPM_overlay .gpm-aitbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;}'+
+    '#GPM_overlay .gpm-aitbl th{color:#8896a5;text-align:left;font-weight:600;padding:3px 4px;border-bottom:1px solid #2e3a48;}'+
+    '#GPM_overlay .gpm-aitbl td{padding:2px 4px;}'+
+    '#GPM_overlay .gpm-aitbl input{width:100%;background:#0f151c;border:1px solid #2e3a48;border-radius:5px;color:#e6edf3;padding:4px 6px;font-size:12px;}'+
+    '#GPM_overlay .gpm-aitbl .ai-del{width:26px;background:#2a1a20;border:1px solid #3a2730;color:#fca5a5;border-radius:5px;cursor:pointer;}'+
     '#GPM_overlay .gpm-hd .gpm-send:hover{background:#3ec971;color:#0b0f14;}'+
     '#GPM_overlay .gpm-close{background:#222c38;border:1px solid #2e3a48;color:#e6edf3;width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;}'+
     '#GPM_overlay .gpm-main{flex:1;display:flex;min-height:0;}'+
@@ -2374,6 +2394,7 @@ CC_injectUI(CC_boot);
         '</div>'+
         '<button class="gpm-tool" id="GPM_t_pan" data-tool="pan" disabled title="Déplacer la vue">'+svgIco('<path d="M12 2v6M12 22v-6M2 12h6M22 12h-6"/>')+'Pan</button>'+
         '<button class="gpm-tool" id="GPM_t_angle" data-tool="angle" disabled title="Angle et pente (3 points)">'+svgIco('<path d="M4 20h16M4 20L18 6M4 20a8 8 0 008-8"/>')+'Angle</button>'+
+        '<button class="gpm-tool" id="GPM_t_ai" data-tool="aiselect" disabled title="Reconnaissance AI : encadre un tableau d\'ouvertures">'+svgIco('<path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/>')+'AI</button>'+
         '<button class="gpm-tool" id="GPM_t_select" data-tool="select" disabled title="Sélectionner / déplacer une mesure">'+svgIco('<path d="M5 3l7 17 2-7 7-2z"/>')+'Sélect.</button>'+
       '</div>'+
       '<div class="gpm-stage" id="GPM_stage">'+
@@ -2452,6 +2473,18 @@ CC_injectUI(CC_boot);
       '<div id="GPM_secList"></div>'+
       '<div style="display:flex;gap:6px;margin-top:8px"><input type="text" id="GPM_secNew" placeholder="ex. RDC, Étage, Garage…" style="flex:1"><button class="gpm-ok" id="GPM_secAdd">Ajouter</button></div>'+
       '<div class="gpm-mbtns"><button class="gpm-ok" id="GPM_secClose">Fermer</button></div>'+
+    '</div></div>'+
+    // Reconnaissance AI d'un tableau d'ouvertures
+    '<div class="gpm-modal-bg" id="GPM_aiModal"><div class="gpm-modal" style="max-width:640px">'+
+      '<h4>Reconnaissance AI \u2014 tableau d\'ouvertures</h4>'+
+      '<div id="GPM_aiCfg" style="display:none">'+
+        '<div style="font-size:12px;color:#8896a5;margin-bottom:6px">Colle l\'URL de ton proxy (Cloudflare Worker). La cl\u00e9 API reste sur le serveur, jamais ici.</div>'+
+        '<div style="display:flex;gap:6px;margin-bottom:8px"><input type="text" id="GPM_aiUrl" placeholder="https://ton-worker.workers.dev" style="flex:1"><button class="gpm-ok" id="GPM_aiSaveUrl">Enregistrer</button></div>'+
+      '</div>'+
+      '<div id="GPM_aiStatus" style="font-size:13px;color:#cbd5e1;margin-bottom:8px"></div>'+
+      '<div id="GPM_aiReview"></div>'+
+      '<div id="GPM_aiSecRow" style="display:none;margin-top:8px"><label>Section</label><div id="GPM_aiSecs" class="gpm-chkgrp"></div></div>'+
+      '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_aiCancel">Fermer</button><button class="gpm-ok" id="GPM_aiInject" style="display:none">Injecter les ouvertures</button></div>'+
     '</div></div>';
     document.body.appendChild(ov);
     el=ov;
@@ -2514,7 +2547,7 @@ CC_injectUI(CC_boot);
     S.cur=0;
     gid('GPM_empty').style.display='none';
     gid('GPM_zoomctl').style.display='flex';
-    ['GPM_t_scale','GPM_t_line','GPM_t_ruler','GPM_t_area','GPM_t_open','GPM_t_pan','GPM_t_select','GPM_t_angle'].forEach(function(id){gid(id).disabled=false;});
+    ['GPM_t_scale','GPM_t_line','GPM_t_ruler','GPM_t_area','GPM_t_open','GPM_t_pan','GPM_t_select','GPM_t_angle','GPM_t_ai'].forEach(function(id){gid(id).disabled=false;});
     renderPageTabs(); showPage(0);
   }
 
@@ -2593,7 +2626,7 @@ CC_injectUI(CC_boot);
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-tool[data-tool]'),function(b){b.classList.toggle('active',b.dataset.tool===t);});
     updSubActive();
     var oMode={rect:'Ouverture <b>rectangle</b> : 2 coins opposés.',point:'Ouverture <b>par point</b> : clique l\'emplacement, puis les dimensions.',poly:'Ouverture <b>forme libre</b> : clique les sommets, double-clic pour fermer.',round:'Ouverture <b>ronde</b> : clique le centre puis un point du bord.'};
-    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',ruler:'Mesure (règle) : clique les points, double-clic pour terminer. <b>Non injectée</b> dans le calculateur.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>forme libre</b> : clique les sommets, double-clic pour fermer.')+' (sous-outils au survol · <b>r</b>/<b>t</b>)',opening:(oMode[S.openMode]||oMode.rect)+' (sous-outils au survol · <b>o</b>/<b>i</b>/<b>p</b>)',pan:'Glisse pour déplacer (ou clic-molette).',select:'Sélection : clique une mesure (glisse pour déplacer). <b>Shift</b>+clic ou glisser une zone vide = sélection multiple. <b>Double-clic</b> = modifier. Ctrl/Cmd+C/V/X, Suppr, Ctrl/Cmd+Z.',angle:'Angle &amp; pente : clique <b>3 points</b> (le 2e = le sommet). Astuce : 1er segment à l\'horizontale pour lire la pente du toit.'};
+    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',ruler:'Mesure (règle) : clique les points, double-clic pour terminer. <b>Non injectée</b> dans le calculateur.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>forme libre</b> : clique les sommets, double-clic pour fermer.')+' (sous-outils au survol · <b>r</b>/<b>t</b>)',opening:(oMode[S.openMode]||oMode.rect)+' (sous-outils au survol · <b>o</b>/<b>i</b>/<b>p</b>)',pan:'Glisse pour déplacer (ou clic-molette).',select:'Sélection : clique une mesure (glisse pour déplacer). <b>Shift</b>+clic ou glisser une zone vide = sélection multiple. <b>Double-clic</b> = modifier. Ctrl/Cmd+C/V/X, Suppr, Ctrl/Cmd+Z.',angle:'Angle &amp; pente : clique <b>3 points</b> (le 2e = le sommet). Astuce : 1er segment à l\'horizontale pour lire la pente du toit.',aiselect:'Reconnaissance AI : <b>encadre</b> un tableau d\'ouvertures, relâche, puis révise avant d\'injecter.'};
     var h=gid('GPM_hint'); h.innerHTML=hints[t]||''; h.classList.toggle('show',!!hints[t]);
     redraw();
   }
@@ -2845,9 +2878,88 @@ CC_injectUI(CC_boot);
     inp.value=''; renderSecManager(); inp.focus();
   }
   function openSecManager(){ renderSecManager(); gid('GPM_secModal').classList.add('show'); setTimeout(function(){var i=gid('GPM_secNew');if(i)i.focus();},30); }
+
+  // ─── Reconnaissance AI d'un tableau d'ouvertures (proxy backend requis) ───
+  var AI_KEY='gp_ai_proxy';
+  function aiProxyUrl(){ try{return localStorage.getItem(AI_KEY)||'';}catch(e){return '';} }
+  function aiSetUrl(u){ try{localStorage.setItem(AI_KEY,u||'');}catch(e){} }
+  function cropRegion(r){
+    var x=Math.round(Math.min(r.x0,r.x1)),y=Math.round(Math.min(r.y0,r.y1)),w=Math.round(Math.abs(r.x1-r.x0)),h=Math.round(Math.abs(r.y1-r.y0));
+    if(w<6||h<6)return null;
+    var c=document.createElement('canvas'); c.width=w; c.height=h;
+    try{ c.getContext('2d').drawImage(planCanvas,x,y,w,h,0,0,w,h); }catch(e){ return null; }
+    return c.toDataURL('image/png');
+  }
+  // Appel réseau ISOLÉ (mockable). Le proxy reçoit l'image et renvoie {openings:[{code,width_in,height_in,qty}]}.
+  function callAIProxy(dataURL){
+    if(window.__GPM_AI_MOCK__)return Promise.resolve(window.__GPM_AI_MOCK__(dataURL)).then(function(d){return (d&&d.openings)||(Array.isArray(d)?d:[]);});
+    var url=aiProxyUrl(); if(!url)return Promise.reject(new Error('URL du proxy non configurée'));
+    var b64=(dataURL.split(',')[1])||'';
+    return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:b64,media_type:'image/png'})})
+      .then(function(resp){ if(!resp.ok)throw new Error('Proxy '+resp.status); return resp.json(); })
+      .then(function(d){ return (d&&d.openings)||[]; });
+  }
+  function inToFields(r,win,hin){
+    win=parseFloat(win)||0; hin=parseFloat(hin)||0;
+    r.l_pi=String(Math.floor(win/12)); r.l_po=String(Math.round((win%12)*100)/100); r.l_mm=String(Math.round(win*25.4));
+    r.h_pi=String(Math.floor(hin/12)); r.h_po=String(Math.round((hin%12)*100)/100); r.h_mm=String(Math.round(hin*25.4));
+  }
+  function openAIModal(){
+    var modal=gid('GPM_aiModal');
+    gid('GPM_aiReview').innerHTML=''; gid('GPM_aiInject').style.display='none'; gid('GPM_aiSecRow').style.display='none';
+    gid('GPM_aiCfg').style.display=aiProxyUrl()?'none':'block';
+    gid('GPM_aiUrl').value=aiProxyUrl();
+    gid('GPM_aiStatus').textContent=aiProxyUrl()?'Encadre un tableau d\'ouvertures sur le plan, puis relâche.':'Configure d\'abord l\'URL du proxy.';
+    modal.classList.add('show');
+  }
+  function aiDetect(dataURL){
+    gid('GPM_aiModal').classList.add('show');
+    gid('GPM_aiCfg').style.display=aiProxyUrl()?'none':'block';
+    gid('GPM_aiStatus').textContent='Analyse en cours…';
+    gid('GPM_aiReview').innerHTML=''; gid('GPM_aiInject').style.display='none'; gid('GPM_aiSecRow').style.display='none';
+    callAIProxy(dataURL).then(function(rows){
+      if(!rows.length){ gid('GPM_aiStatus').textContent='Aucune ouverture détectée. Réessaie avec une sélection plus serrée.'; return; }
+      renderAIReview(rows);
+    }).catch(function(err){
+      gid('GPM_aiStatus').textContent='Erreur : '+(err&&err.message||err)+'. Vérifie l\'URL du proxy.';
+      gid('GPM_aiCfg').style.display='block';
+    });
+  }
+  function renderAIReview(rows){
+    gid('GPM_aiStatus').textContent=rows.length+' ouverture(s) détectée(s) — révise puis injecte :';
+    var html='<table class="gpm-aitbl"><thead><tr><th>Code</th><th>Larg. (po)</th><th>Haut. (po)</th><th>Qté</th><th></th></tr></thead><tbody>';
+    rows.forEach(function(o,i){
+      html+='<tr data-i="'+i+'">'+
+        '<td><input class="ai-code" value="'+escAttr(o.code||'')+'"></td>'+
+        '<td><input class="ai-w" type="number" step="any" value="'+(o.width_in||'')+'"></td>'+
+        '<td><input class="ai-h" type="number" step="any" value="'+(o.height_in||'')+'"></td>'+
+        '<td><input class="ai-q" type="number" step="1" value="'+(o.qty||1)+'"></td>'+
+        '<td><button class="ai-del" title="Retirer">\u00d7</button></td></tr>';
+    });
+    html+='</tbody></table>';
+    var rev=gid('GPM_aiReview'); rev.innerHTML=html;
+    Array.prototype.forEach.call(rev.querySelectorAll('.ai-del'),function(b){b.onclick=function(){var tr=b.closest('tr');tr.parentNode.removeChild(tr);};});
+    var sec=ccSecItems(); fillChkGroup(gid('GPM_aiSecs'),sec,[sec[0].id]);
+    gid('GPM_aiSecRow').style.display='block'; gid('GPM_aiInject').style.display='';
+  }
+  function aiInject(){
+    var rev=gid('GPM_aiReview'); var trs=rev.querySelectorAll('tbody tr');
+    var sids=readChkGroup(gid('GPM_aiSecs')); var secId=sids[0]||(ccSecItems()[0]||{}).id;
+    var n=0;
+    Array.prototype.forEach.call(trs,function(tr){
+      var w=parseFloat(tr.querySelector('.ai-w').value)||0, h=parseFloat(tr.querySelector('.ai-h').value)||0;
+      if(w<=0||h<=0)return;
+      var r=CC_defaultRow('ouv'); r.secId=secId; r.code=tr.querySelector('.ai-code').value||''; r.qty=parseInt(tr.querySelector('.ai-q').value,10)||1;
+      inToFields(r,w,h); CC_rows.ouv.push(r); n++;
+    });
+    if(typeof CC_renderTable==='function')CC_renderTable('ouv'); if(typeof CC_recalc==='function')CC_recalc();
+    gid('GPM_aiModal').classList.remove('show');
+    gid('GPM_aiStatus').textContent='';
+    return n;
+  }
   function measLabel(m){
     var pre=m.name?m.name+' · ':'';
-    if(m.geomType==='opening')return (m.oShape==='poly'||m.oShape==='round')?((m.name||'Ouv.')+' '+fmtArea(m.areaM2)):((m.name||'Ouv.')+' '+lenVal(m.owM).toFixed(2)+'×'+lenVal(m.ohM).toFixed(2));
+    if(m.geomType==='opening')return (m.oShape==='poly'||m.oShape==='round')?((m.name||'Ouv.')+' '+fmtArea(m.areaM2)):((m.name||'Ouv.')+' '+fmtLen(m.owM)+' × '+fmtLen(m.ohM));
     if(m.geomType==='area')return pre+fmtArea(m.areaM2);
     return pre+fmtLen(m.lengthM);
   }
@@ -2935,7 +3047,8 @@ CC_injectUI(CC_boot);
     }
     if(S.band){
       var bx=Math.min(S.band.x0,S.band.x1),by=Math.min(S.band.y0,S.band.y1),bw=Math.abs(S.band.x1-S.band.x0),bh=Math.abs(S.band.y1-S.band.y0);
-      svg+='<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" fill="rgba(96,165,250,.12)" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="5 3"/>';
+      var bc=S.band.ai?'#c084fc':'#60a5fa';
+      svg+='<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" fill="'+bc+'22" stroke="'+bc+'" stroke-width="1.5" stroke-dasharray="5 3"/>';
     }
     draw.innerHTML=svg;
   }
@@ -2948,7 +3061,7 @@ CC_injectUI(CC_boot);
     S.measures.forEach(function(m){
       var col=measColor(m);
       var nameTxt=m.geomType==='opening'?(m.name||'Ouverture'):(m.name||(m.geomType==='area'?'Surface':(m.geomType==='ruler'?'Mesure':'Ligne')));
-      var geomTxt=m.geomType==='opening'?((m.oShape==='poly'||m.oShape==='round')?(fmtArea(m.areaM2)+' · pér. '+fmtLen(m.perimM||0)):(lenVal(m.owM).toFixed(2)+'×'+lenVal(m.ohM).toFixed(2)+' '+lenUnit())):(m.geomType==='area'?(m.pente>0?fmtArea(slopedArea(m))+' (pente '+m.pente+':12)':fmtArea(m.areaM2)):(m.pente>0?fmtLen(m.lengthM*slopeFactor(m.pente))+' (pente '+m.pente+':12)':fmtLen(m.lengthM)));
+      var geomTxt=m.geomType==='opening'?((m.oShape==='poly'||m.oShape==='round')?(fmtArea(m.areaM2)+' · pér. '+fmtLen(m.perimM||0)):(fmtLen(m.owM)+' × '+fmtLen(m.ohM))):(m.geomType==='area'?(m.pente>0?fmtArea(slopedArea(m))+' (pente '+m.pente+':12)':fmtArea(m.areaM2)):(m.pente>0?fmtLen(m.lengthM*slopeFactor(m.pente))+' (pente '+m.pente+':12)':fmtLen(m.lengthM)));
       if(m.geomType==='line'){var nseg=m.pts.length-1; geomTxt+=' · '+nseg+' seg.';}
       var tags='';
       if(m.geomType!=='opening'){
@@ -3195,6 +3308,7 @@ CC_injectUI(CC_boot);
       if(S.tool==='pan'){panning={x:e.clientX-S.panX,y:e.clientY-S.panY};return;}
       var p=toImg(e);
       if(p.x<0||p.x>S.imgW||p.y<0||p.y>S.imgH)return;
+      if(S.tool==='aiselect'){ S.band={x0:p.x,y0:p.y,x1:p.x,y1:p.y,ai:true}; setSel([]); redraw(); return; }
       if(S.tool==='select'){
         if(S.angleAnn&&hitAngleLabel(p)){ S.moving={angle:true,last:p,moved:false}; return; }
         var sel=(S.selIds.length===1)?S.measures.find(function(x){return x.id===S.selId;}):null;
@@ -3282,6 +3396,12 @@ CC_injectUI(CC_boot);
       if(e.button===1)midPan=false; if(!midPan)panning=null;
       if(S.band){
         var r=S.band, big=(Math.abs(r.x1-r.x0)>4||Math.abs(r.y1-r.y0)>4);
+        if(r.ai){
+          S.band=null; redraw();
+          if(big){ var img=cropRegion(r); if(img){ aiDetect(img); } else { openAIModal(); } }
+          else { openAIModal(); }
+          return;
+        }
         if(big){ var ids=S.measures.filter(function(m){return ptInRect(measurePoint(m),r);}).map(function(m){return m.id;}); setSel(ids); }
         S.band=null; renderItems(); redraw();
       }
@@ -3322,7 +3442,9 @@ CC_injectUI(CC_boot);
         GPM_close(); return;
       }
       if(inField||mod)return; // raccourcis lettres : pas pendant la saisie ni avec Ctrl/Cmd
-      var kk=(e.key||'').toLowerCase();
+      // Sur Mac, Option+lettre produit un caractère spécial (ß, π…) : on lit la TOUCHE PHYSIQUE
+      // (e.code = 'KeyS'…), insensible à Option et à la disposition du clavier.
+      var cm=/^Key([A-Z])$/.exec(e.code||''); var kk=cm?cm[1].toLowerCase():(e.key||'').toLowerCase();
       // Shift + Option(alt)
       if(e.shiftKey&&e.altKey){
         if(kk==='s'){ openSecManager(); e.preventDefault(); return; }
@@ -3408,6 +3530,9 @@ CC_injectUI(CC_boot);
     gid('GPM_secBtn').onclick=function(){openSecManager();};
     gid('GPM_secAdd').onclick=function(){addSecFromTakeoff();};
     gid('GPM_secClose').onclick=function(){gid('GPM_secModal').classList.remove('show');};
+    gid('GPM_aiSaveUrl').onclick=function(){ aiSetUrl(gid('GPM_aiUrl').value.trim()); gid('GPM_aiCfg').style.display=aiProxyUrl()?'none':'block'; gid('GPM_aiStatus').textContent=aiProxyUrl()?'URL enregistrée. Encadre un tableau d\'ouvertures sur le plan.':'URL vide.'; };
+    gid('GPM_aiCancel').onclick=function(){gid('GPM_aiModal').classList.remove('show');};
+    gid('GPM_aiInject').onclick=function(){ var n=aiInject(); };
     gid('GPM_secNew').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();addSecFromTakeoff();}if(e.key==='Escape'){e.stopPropagation();gid('GPM_secModal').classList.remove('show');}});
     bindStage(); bindKeys();
     ['GPM_scaleModal','GPM_roleModal','GPM_openModal'].forEach(function(id){
@@ -3458,12 +3583,12 @@ CC_injectUI(CC_boot);
     if(!built)return;
     var em=gid('GPM_empty'); if(em)em.style.display='';
     var zc=gid('GPM_zoomctl'); if(zc)zc.style.display='none';
-    ['GPM_t_scale','GPM_t_line','GPM_t_ruler','GPM_t_area','GPM_t_open','GPM_t_pan','GPM_t_select','GPM_t_angle'].forEach(function(id){var b=gid(id);if(b)b.disabled=true;});
+    ['GPM_t_scale','GPM_t_line','GPM_t_ruler','GPM_t_area','GPM_t_open','GPM_t_pan','GPM_t_select','GPM_t_angle','GPM_t_ai'].forEach(function(id){var b=gid(id);if(b)b.disabled=true;});
     if(draw)draw.innerHTML=''; renderItems(); renderPageTabs();
   };
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiInject:aiInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields };
   }
 })();
