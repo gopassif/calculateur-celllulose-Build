@@ -2125,7 +2125,7 @@ CC_injectUI(CC_boot);
 
   // ── État ───────────────────────────────────────────────────────────────
   var S={
-    unit:'metric', impFmt:'dec', tool:null, drawTool:'line',
+    unit:'metric', impFmt:'dec', aiMode:'opening', tool:null, drawTool:'line',
     zoom:1, panX:40, panY:40, drawing:null, hover:null,
     areaMode:'poly',            // 'poly' | 'rect' pour l'outil Surface
     openMode:'rect',            // 'rect' | 'point' | 'poly' | 'round' pour l'outil Ouverture
@@ -2282,6 +2282,7 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-sub svg{width:19px;height:19px;}'+
     '#GPM_overlay .gpm-sub:hover{color:#fff;border-color:#8896a5;background:#28323f;}'+
     '#GPM_overlay .gpm-sub.active{background:#4ade80;color:#0b0f14;border-color:#4ade80;}'+
+    '#GPM_overlay .gpm-sub-txt{width:auto;padding:0 10px;gap:7px;white-space:nowrap;font-size:12px;font-weight:600;}'+
     '#GPM_overlay .gpm-tool-sep{width:34px;height:1px;background:#2e3a48;margin:3px 0;}'+
     '#GPM_overlay .gpm-stage{flex:1;position:relative;overflow:hidden;background:#0d1219;}'+
     '#GPM_overlay #GPM_wrap{position:absolute;transform-origin:0 0;}'+
@@ -2391,11 +2392,18 @@ CC_injectUI(CC_boot);
             '<button class="gpm-sub" data-tool="opening" data-sub="poly" title="Forme libre">'+svgIco('<path d="M4 8l5-5 9 3 4 9-7 6-9-4z"/>')+'</button>'+
             '<button class="gpm-sub" data-tool="opening" data-sub="round" title="Rond">'+svgIco('<circle cx="12" cy="12" r="9"/>')+'</button>'+
             '<button class="gpm-sub" data-tool="opening" data-sub="point" title="Pointage">'+svgIco('<circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>')+'</button>'+
+            '<button class="gpm-sub" data-tool="aiselect" data-sub="opening" title="AI : détecter un tableau d\'ouvertures">'+svgIco('<path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/>')+'</button>'+
           '</div>'+
         '</div>'+
         '<button class="gpm-tool" id="GPM_t_pan" data-tool="pan" disabled title="Déplacer la vue">'+svgIco('<path d="M12 2v6M12 22v-6M2 12h6M22 12h-6"/>')+'Pan</button>'+
         '<button class="gpm-tool" id="GPM_t_angle" data-tool="angle" disabled title="Angle et pente (3 points)">'+svgIco('<path d="M4 20h16M4 20L18 6M4 20a8 8 0 008-8"/>')+'Angle</button>'+
-        '<button class="gpm-tool" id="GPM_t_ai" data-tool="aiselect" disabled title="Reconnaissance AI : encadre un tableau d\'ouvertures">'+svgIco('<path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/>')+'AI</button>'+
+        '<div class="gpm-tool-wrap">'+
+          '<button class="gpm-tool" id="GPM_t_ai" data-tool="aiselect" disabled title="Assistance AI (survole pour les modes)">'+svgIco('<path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/>')+'AI</button>'+
+          '<div class="gpm-flyout">'+
+            '<button class="gpm-sub gpm-sub-txt" data-tool="aiselect" data-sub="opening" title="Détecter un tableau d\'ouvertures">'+svgIco('<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M5 12h14"/>')+'AI Ouverture</button>'+
+            '<button class="gpm-sub gpm-sub-txt" data-tool="aiselect" data-sub="surface" title="Détecter surfaces et périmètres">'+svgIco('<path d="M4 6l6-2 10 3-2 11-12-2z"/>')+'AI Surfaces</button>'+
+          '</div>'+
+        '</div>'+
         '<button class="gpm-tool" id="GPM_t_select" data-tool="select" disabled title="Sélectionner / déplacer une mesure">'+svgIco('<path d="M5 3l7 17 2-7 7-2z"/>')+'Sélect.</button>'+
       '</div>'+
       '<div class="gpm-stage" id="GPM_stage">'+
@@ -2614,14 +2622,15 @@ CC_injectUI(CC_boot);
     if(!el)return;
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-sub'),function(b){
       var on=(b.dataset.tool==='area'&&S.tool==='area'&&b.dataset.sub===S.areaMode)||
-             (b.dataset.tool==='opening'&&S.tool==='opening'&&b.dataset.sub===S.openMode);
+             (b.dataset.tool==='opening'&&S.tool==='opening'&&b.dataset.sub===S.openMode)||
+             (b.dataset.tool==='aiselect'&&S.tool==='aiselect'&&b.dataset.sub===S.aiMode);
       b.classList.toggle('active',on);
     });
   }
   function selectSub(tool,sub){
     var tbId=tool==='opening'?'GPM_t_open':('GPM_t_'+tool);
     var tb=gid(tbId); if(tb&&tb.disabled)return;
-    if(tool==='area')S.areaMode=sub; else if(tool==='opening')S.openMode=sub;
+    if(tool==='area')S.areaMode=sub; else if(tool==='opening')S.openMode=sub; else if(tool==='aiselect')S.aiMode=sub;
     S.drawing=null; setTool(tool);
   }
   function setTool(t){
@@ -2630,7 +2639,7 @@ CC_injectUI(CC_boot);
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-tool[data-tool]'),function(b){b.classList.toggle('active',b.dataset.tool===t);});
     updSubActive();
     var oMode={rect:'Ouverture <b>rectangle</b> : 2 coins opposés.',point:'Ouverture <b>par point</b> : clique l\'emplacement, puis les dimensions.',poly:'Ouverture <b>forme libre</b> : clique les sommets, double-clic pour fermer.',round:'Ouverture <b>ronde</b> : clique le centre puis un point du bord.'};
-    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',ruler:'Mesure (règle) : clique les points, double-clic pour terminer. <b>Non injectée</b> dans le calculateur.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>forme libre</b> : clique les sommets, double-clic pour fermer.')+' (sous-outils au survol · <b>r</b>/<b>t</b>)',opening:(oMode[S.openMode]||oMode.rect)+' (sous-outils au survol · <b>o</b>/<b>i</b>/<b>p</b>)',pan:'Glisse pour déplacer (ou clic-molette).',select:'Sélection : clique une mesure (glisse pour déplacer). <b>Shift</b>+clic ou glisser une zone vide = sélection multiple. <b>Double-clic</b> = modifier. Ctrl/Cmd+C/V/X, Suppr, Ctrl/Cmd+Z.',angle:'Angle &amp; pente : clique <b>3 points</b> (le 2e = le sommet). Astuce : 1er segment à l\'horizontale pour lire la pente du toit.',aiselect:'Reconnaissance AI : <b>encadre</b> un tableau d\'ouvertures, relâche, puis révise avant d\'injecter.'};
+    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',ruler:'Mesure (règle) : clique les points, double-clic pour terminer. <b>Non injectée</b> dans le calculateur.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>forme libre</b> : clique les sommets, double-clic pour fermer.')+' (sous-outils au survol · <b>r</b>/<b>t</b>)',opening:(oMode[S.openMode]||oMode.rect)+' (sous-outils au survol · <b>o</b>/<b>i</b>/<b>p</b>)',pan:'Glisse pour déplacer (ou clic-molette).',select:'Sélection : clique une mesure (glisse pour déplacer). <b>Shift</b>+clic ou glisser une zone vide = sélection multiple. <b>Double-clic</b> = modifier. Ctrl/Cmd+C/V/X, Suppr, Ctrl/Cmd+Z.',angle:'Angle &amp; pente : clique <b>3 points</b> (le 2e = le sommet). Astuce : 1er segment à l\'horizontale pour lire la pente du toit.',aiselect:(S.aiMode==='surface'?'AI Surfaces : <b>encadre</b> une ou des pièces, relâche. L\'AI propose des polygones <b>éditables</b> (ajuste les sommets) pour surface et périmètre.':'AI Ouverture : <b>encadre</b> un tableau d\'ouvertures, relâche, puis révise avant d\'injecter.')};
     var h=gid('GPM_hint'); h.innerHTML=hints[t]||''; h.classList.toggle('show',!!hints[t]);
     redraw();
   }
@@ -2898,15 +2907,16 @@ CC_injectUI(CC_boot);
     try{ c.getContext('2d').drawImage(planCanvas,x,y,w,h,0,0,w,h); }catch(e){ return null; }
     return c.toDataURL('image/png');
   }
-  // Appel réseau ISOLÉ (mockable). Le proxy reçoit l'image et renvoie {openings:[{code,width_in,height_in,qty}]}.
-  function callAIProxy(dataURL){
-    if(window.__GPM_AI_MOCK__)return Promise.resolve(window.__GPM_AI_MOCK__(dataURL)).then(function(d){return (d&&d.openings)||(Array.isArray(d)?d:[]);});
+  // Appel réseau ISOLÉ (mockable). mode='openings'|'surfaces'. Le proxy reçoit l'image + mode.
+  function callAIRaw(dataURL,mode){
+    if(window.__GPM_AI_MOCK__)return Promise.resolve(window.__GPM_AI_MOCK__(dataURL,mode)).then(function(d){return d||{};});
     var url=aiProxyUrl(); if(!url)return Promise.reject(new Error('URL du proxy non configurée'));
     var b64=(dataURL.split(',')[1])||'';
-    return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:b64,media_type:'image/png'})})
-      .then(function(resp){ if(!resp.ok)throw new Error('Proxy '+resp.status); return resp.json(); })
-      .then(function(d){ return (d&&d.openings)||[]; });
+    return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:b64,media_type:'image/png',mode:mode})})
+      .then(function(resp){ if(!resp.ok)throw new Error('Proxy '+resp.status); return resp.json(); });
   }
+  function callAIProxy(dataURL){ return callAIRaw(dataURL,'openings').then(function(d){ return (d&&d.openings)||(Array.isArray(d)?d:[]); }); }
+  function callAIProxySurfaces(dataURL){ return callAIRaw(dataURL,'surfaces').then(function(d){ return (d&&d.surfaces)||[]; }); }
   function inToFields(r,win,hin){
     win=parseFloat(win)||0; hin=parseFloat(hin)||0;
     r.l_pi=String(Math.floor(win/12)); r.l_po=String(Math.round((win%12)*100)/100); r.l_mm=String(Math.round(win*25.4));
@@ -2971,6 +2981,38 @@ CC_injectUI(CC_boot);
       S.measures.push(m); made.push(m); row++;
     });
     renderItems(); redraw();
+    return made;
+  }
+  // AI Surfaces : l'AI propose des polygones (sommets en px de la région encadrée) ;
+  // on les place comme SURFACES ÉDITABLES (l'utilisateur ajuste les sommets), surface + périmètre calculés.
+  function aiDetectSurfaces(dataURL,rect){
+    if(!S.scalePxPerM){ alert('Cale d\'abord l\'échelle.'); setTool('scale'); return; }
+    gid('GPM_aiModal').classList.add('show');
+    gid('GPM_aiCfg').style.display=aiProxyUrl()?'none':'block';
+    gid('GPM_aiStatus').textContent='Analyse des surfaces…';
+    gid('GPM_aiReview').innerHTML=''; gid('GPM_aiApply').style.display='none'; gid('GPM_aiApplyInject').style.display='none'; gid('GPM_aiSecRow').style.display='none';
+    callAIProxySurfaces(dataURL).then(function(surfs){
+      if(!surfs.length){ gid('GPM_aiStatus').textContent='Aucune surface détectée. Réessaie avec une sélection plus serrée.'; return; }
+      var made=aiBuildSurfaces(surfs,rect||S._aiRect||{});
+      gid('GPM_aiModal').classList.remove('show'); gid('GPM_aiStatus').textContent='';
+      setTool('select'); if(made.length)setSel(made.map(function(m){return m.id;}));
+    }).catch(function(err){
+      gid('GPM_aiStatus').textContent='Erreur : '+(err&&err.message||err)+'. Vérifie l\'URL du proxy.';
+      gid('GPM_aiCfg').style.display='block';
+    });
+  }
+  function aiBuildSurfaces(surfs,rect){
+    var ox=Math.min(rect.x0||0,rect.x1||0), oy=Math.min(rect.y0||0,rect.y1||0);
+    var made=[]; pushUndo();
+    (surfs||[]).forEach(function(s){
+      var raw=s.points||s.pts||[];
+      var pts=raw.map(function(p){ var x=Array.isArray(p)?p[0]:p.x, y=Array.isArray(p)?p[1]:p.y; return {x:ox+(parseFloat(x)||0),y:oy+(parseFloat(y)||0)}; });
+      if(pts.length<3)return;
+      var m={id:idc++,geomType:'area',pts:pts,name:s.name||'',apps:[],secIds:[],memInt:false,memExt:false,height:null,rect:false,pente:0,sent:false,color:'#38bdf8',aiSurface:true};
+      m.areaM2=areaM2(pts);
+      S.measures.push(m); made.push(m);
+    });
+    renderItems(); redraw(); renderPageTabs();
     return made;
   }
   function aiAddSection(){
@@ -3125,6 +3167,7 @@ CC_injectUI(CC_boot);
       d.querySelector('.gpm-idup').onclick=function(ev){ev.stopPropagation();duplicateMeasure(m.id);};
       d.querySelector('.gpm-idelbtn').onclick=function(ev){ev.stopPropagation();deleteMeasure(m.id);};
       d.onclick=function(ev){ if(ev.shiftKey){ var ix=S.selIds.indexOf(m.id); if(ix>=0)S.selIds.splice(ix,1); else S.selIds.push(m.id); setSel(S.selIds);} else { setSel(isSel(m.id)&&S.selIds.length===1?[]:[m.id]); } renderItems();redraw();};
+      d.ondblclick=function(ev){ ev.stopPropagation(); if(m.geomType==='opening')editOpening(m); else openRoleModal(m,false); };
       box.appendChild(d);
     });
     renderBatchBar();
@@ -3457,7 +3500,7 @@ CC_injectUI(CC_boot);
         if(r.ai){
           S._aiRect={x0:r.x0,y0:r.y0,x1:r.x1,y1:r.y1};
           S.band=null; redraw();
-          if(big){ var img=cropRegion(r); if(img){ aiDetect(img); } else { openAIModal(); } }
+          if(big){ var img=cropRegion(r); if(img){ if(S.aiMode==='surface')aiDetectSurfaces(img,r); else aiDetect(img); } else { openAIModal(); } }
           else { openAIModal(); }
           return;
         }
@@ -3650,6 +3693,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiDetectSurfaces:aiDetectSurfaces, aiBuildSurfaces:aiBuildSurfaces, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening };
   }
 })();
