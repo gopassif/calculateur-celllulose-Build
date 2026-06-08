@@ -1652,6 +1652,7 @@ function CC_newProject(){
   CC_renderAllTables();
   CC_addRow('murs');
   CC_recalc();
+  if(typeof window!=='undefined'&&typeof window.GPM_reset==='function')window.GPM_reset(); // vide aussi la prise de mesure
 }
 function CC_exportJSON(){
   CC_saveLocal();
@@ -2095,7 +2096,6 @@ CC_injectUI(CC_boot);
       {id:'plafond',  name:'Surface de plafond',  color:'#a78bfa'},
       {id:'grenier',  name:'Entretoit',           color:'#facc15'},
       {id:'toiture',  name:'Toiture (pan)',       color:'#f472b6'},
-      {id:'dalle',    name:'Dalle',               color:'#fcd34d'},
       {id:'mur',      name:'Mur (surface)',       color:'#60a5fa'},
       {id:'pignon',   name:'Pignon',              color:'#fca5a5'},
       {id:'perimetre',name:'Périmètre → murs',    color:'#4ade80'}
@@ -2110,7 +2110,7 @@ CC_injectUI(CC_boot);
 
   // ── État ───────────────────────────────────────────────────────────────
   var S={
-    unit:'metric', tool:null, drawTool:'line',
+    unit:'metric', impFmt:'dec', tool:null, drawTool:'line',
     zoom:1, panX:40, panY:40, drawing:null, hover:null,
     areaMode:'poly',            // 'poly' | 'rect' pour l'outil Surface
     openMode:'rect',            // 'rect' | 'point' | 'poly' | 'round' pour l'outil Ouverture
@@ -2134,7 +2134,8 @@ CC_injectUI(CC_boot);
   // ── Formatage ───────────────────────────────────────────────────────────
   function lenUnit(){return S.unit==='metric'?'m':'pi';}
   function lenVal(m){return S.unit==='metric'?m:m/FT_M;}
-  function fmtLen(m){return S.unit==='metric'?m.toFixed(2)+' m':(m/FT_M).toFixed(2)+' pi';}
+  function fmtFtIn(feet){ var s=feet<0?-1:1; feet=Math.abs(feet); var ft=Math.floor(feet); var inch=Math.round((feet-ft)*12); if(inch>=12){ft++;inch-=12;} return (s<0?'-':'')+ft+' pi '+inch+' po'; }
+  function fmtLen(m){ if(S.unit==='metric')return m.toFixed(2)+' m'; var feet=m/FT_M; return S.impFmt==='ftin'?fmtFtIn(feet):feet.toFixed(2)+' pi'; }
   function fmtArea(m2){return S.unit==='metric'?m2.toFixed(2)+' m²':(m2*M2_FT2).toFixed(1)+' pi²';}
 
   // ── Géométrie ─────────────────────────────────────────────────────────
@@ -2149,7 +2150,7 @@ CC_injectUI(CC_boot);
     // priorité aux dernières (dessus)
     for(var i=S.measures.length-1;i>=0;i--){var m=S.measures[i];
       if(m.geomType==='area'){ if(m.pts.length>=3&&pointInPoly(p,m.pts))return m; }
-      else if(m.geomType==='line'){ for(var k=1;k<m.pts.length;k++)if(distToSeg(p,m.pts[k-1],m.pts[k])<tol)return m; }
+      else if(m.geomType==='line'||m.geomType==='ruler'){ for(var k=1;k<m.pts.length;k++)if(distToSeg(p,m.pts[k-1],m.pts[k])<tol)return m; }
       else if(m.geomType==='opening'){
         if(m.oShape==='poly'){ if(m.pts.length>=3&&pointInPoly(p,m.pts))return m; }
         else if(m.oShape==='round'){ var cc=m.pts[0]; if(Math.hypot(p.x-cc.x,p.y-cc.y)<=(m.rM*S.scalePxPerM)+tol)return m; }
@@ -2354,6 +2355,7 @@ CC_injectUI(CC_boot);
         '<div class="gpm-tool-sep"></div>'+
         '<button class="gpm-tool" id="GPM_t_scale" data-tool="scale" disabled title="Caler l\'échelle">'+svgIco('<path d="M3 12h18M3 9v6M21 9v6M8 10v4M13 10v4M18 10v4"/>')+'Échelle</button>'+
         '<button class="gpm-tool" id="GPM_t_line" data-tool="line" disabled title="Ligne (multi-segments)">'+svgIco('<path d="M4 20L20 4"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="4" r="2"/>')+'Ligne</button>'+
+        '<button class="gpm-tool" id="GPM_t_ruler" data-tool="ruler" disabled title="Mesure (règle — non injectée)">'+svgIco('<path d="M3 17L17 3l4 4L7 21z"/><path d="M7 11l2 2M11 7l2 2M9 15l1.5 1.5"/>')+'Mesure</button>'+
         '<div class="gpm-tool-wrap">'+
           '<button class="gpm-tool" id="GPM_t_area" data-tool="area" disabled title="Surface (survole pour les formes)">'+svgIco('<path d="M5 3l14 4-3 14-13-5z"/>')+'Surf.</button>'+
           '<div class="gpm-flyout">'+
@@ -2394,6 +2396,7 @@ CC_injectUI(CC_boot);
           '<h3>Échelle</h3>'+
           '<div class="gpm-scale no" id="GPM_scaleStatus">Non calée</div>'+
           '<div class="gpm-unit"><button class="active" id="GPM_uMetric">métrique</button><button id="GPM_uImp">impérial</button></div>'+
+          '<div class="gpm-unit" id="GPM_fmtSeg" style="display:none"><button class="active" id="GPM_fmtDec">0.5 pi</button><button id="GPM_fmtFtin">pi + po</button></div>'+
           '<div class="gpm-hrow"><span>Hauteur murs</span><input type="number" id="GPM_globalH" step="any" value="8"><span id="GPM_globalHUnit">pi</span></div>'+
         '</div>'+
         '<div class="gpm-sec" style="flex:1;display:flex;flex-direction:column;min-height:0;padding:0">'+
@@ -2468,6 +2471,20 @@ CC_injectUI(CC_boot);
   }
 
   // ═══════════════════════════ Chargement plan ══════════════════════════
+  function mergeRestored(newPages){
+    // Si les pages actuelles viennent d'un projet JSON restauré (mesures mais SANS image),
+    // on rattache leurs mesures / échelle / angle au nouveau plan, par index de page,
+    // pour pouvoir téléverser le plan SANS perdre les mesures déjà saisies.
+    var old=S.pages||[];
+    if(!old.some(function(p){return p.restored;}))return newPages;
+    newPages.forEach(function(np,i){
+      var op=old[i]; if(!op)return;
+      if(op.measures&&op.measures.length)np.measures=op.measures;
+      if(op.scalePxPerM!=null)np.scalePxPerM=op.scalePxPerM;
+      if(op.angleAnn)np.angleAnn=op.angleAnn;
+    });
+    return newPages;
+  }
   function loadFile(file){
     // Jeton : si un chargement plus récent démarre, l'ancien (lent, p.ex. fichier cloud
     // OneDrive téléchargé en différé) est ABANDONNÉ à sa fin et n'écrase pas le travail en cours.
@@ -2478,7 +2495,7 @@ CC_injectUI(CC_boot);
       }).then(function(pdf){
         if(token!==S.loadToken)return; // chargement périmé : on ne touche à rien
         var pages=[]; for(var i=1;i<=pdf.numPages;i++)pages.push({name:'Page '+i,scalePxPerM:null,measures:[],isPdf:true,pageNum:i,imgW:0,imgH:0});
-        S.pdfDoc=pdf; S.imgSrc=null; S.pages=pages; afterLoad();
+        S.pdfDoc=pdf; S.imgSrc=null; S.pages=mergeRestored(pages); afterLoad();
       }).catch(function(e){ if(token===S.loadToken)alert(e.message||'Erreur PDF'); });
     } else {
       var url=URL.createObjectURL(file);
@@ -2486,7 +2503,7 @@ CC_injectUI(CC_boot);
       im.onload=function(){
         if(token!==S.loadToken){ URL.revokeObjectURL(url); return; } // chargement périmé : abandon
         S.imgSrc=url; S.pdfDoc=null;
-        S.pages=[{name:file.name.replace(/\.[^.]+$/,''),scalePxPerM:null,measures:[],isPdf:false,src:url,imgW:im.width,imgH:im.height}];
+        S.pages=mergeRestored([{name:file.name.replace(/\.[^.]+$/,''),scalePxPerM:null,measures:[],isPdf:false,src:url,imgW:im.width,imgH:im.height}]);
         afterLoad();
       };
       im.onerror=function(){ URL.revokeObjectURL(url); if(token===S.loadToken)alert('Image illisible.'); };
@@ -2497,7 +2514,7 @@ CC_injectUI(CC_boot);
     S.cur=0;
     gid('GPM_empty').style.display='none';
     gid('GPM_zoomctl').style.display='flex';
-    ['GPM_t_scale','GPM_t_line','GPM_t_area','GPM_t_open','GPM_t_pan','GPM_t_select','GPM_t_angle'].forEach(function(id){gid(id).disabled=false;});
+    ['GPM_t_scale','GPM_t_line','GPM_t_ruler','GPM_t_area','GPM_t_open','GPM_t_pan','GPM_t_select','GPM_t_angle'].forEach(function(id){gid(id).disabled=false;});
     renderPageTabs(); showPage(0);
   }
 
@@ -2576,7 +2593,7 @@ CC_injectUI(CC_boot);
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-tool[data-tool]'),function(b){b.classList.toggle('active',b.dataset.tool===t);});
     updSubActive();
     var oMode={rect:'Ouverture <b>rectangle</b> : 2 coins opposés.',point:'Ouverture <b>par point</b> : clique l\'emplacement, puis les dimensions.',poly:'Ouverture <b>forme libre</b> : clique les sommets, double-clic pour fermer.',round:'Ouverture <b>ronde</b> : clique le centre puis un point du bord.'};
-    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>forme libre</b> : clique les sommets, double-clic pour fermer.')+' (sous-outils au survol de l\'icône · <b>R</b>)',opening:(oMode[S.openMode]||oMode.rect)+' (sous-outils au survol · <b>R</b>)',pan:'Glisse pour déplacer (ou clic-molette).',select:'Sélection : clique une mesure (glisse pour déplacer). <b>Shift</b>+clic ou glisser une zone vide = sélection multiple. <b>Double-clic</b> = modifier. Ctrl/Cmd+C/V/X, Suppr, Ctrl/Cmd+Z.',angle:'Angle &amp; pente : clique <b>3 points</b> (le 2e = le sommet). Astuce : 1er segment à l\'horizontale pour lire la pente du toit.'};
+    var hints={scale:'Clique <b>2 points</b> sur une cote connue.',line:'Clique chaque point. <b>Double-clic</b> ou Entrée pour terminer.',ruler:'Mesure (règle) : clique les points, double-clic pour terminer. <b>Non injectée</b> dans le calculateur.',area:(S.areaMode==='rect'?'Surface <b>rectangle</b> : 2 coins opposés.':'Surface <b>forme libre</b> : clique les sommets, double-clic pour fermer.')+' (sous-outils au survol · <b>r</b>/<b>t</b>)',opening:(oMode[S.openMode]||oMode.rect)+' (sous-outils au survol · <b>o</b>/<b>i</b>/<b>p</b>)',pan:'Glisse pour déplacer (ou clic-molette).',select:'Sélection : clique une mesure (glisse pour déplacer). <b>Shift</b>+clic ou glisser une zone vide = sélection multiple. <b>Double-clic</b> = modifier. Ctrl/Cmd+C/V/X, Suppr, Ctrl/Cmd+Z.',angle:'Angle &amp; pente : clique <b>3 points</b> (le 2e = le sommet). Astuce : 1er segment à l\'horizontale pour lire la pente du toit.'};
     var h=gid('GPM_hint'); h.innerHTML=hints[t]||''; h.classList.toggle('show',!!hints[t]);
     redraw();
   }
@@ -2620,6 +2637,13 @@ CC_injectUI(CC_boot);
     S.measures.push(m); setSel([m.id]); S.drawing=null;
     redraw(); renderItems(); renderPageTabs();
     openRoleModal(m,true);
+  }
+  function finishRuler(){
+    var d=S.drawing; if(!d||d.pts.length<2){S.drawing=null;redraw();return;}
+    pushUndo();
+    var m={id:idc++,geomType:'ruler',pts:d.pts.slice(),lengthM:lineLenM(d.pts),name:'',sent:false};
+    S.measures.push(m); setSel([m.id]); S.drawing=null;
+    redraw(); renderItems(); renderPageTabs(); // pas de modale : c'est une simple mesure
   }
   function finishAreaRect(){
     pushUndo();
@@ -2720,7 +2744,7 @@ CC_injectUI(CC_boot);
     var modal=gid('GPM_roleModal');
     var rmBox=modal.querySelector('.gpm-modal'); if(rmBox&&rmBox._resetDrag)rmBox._resetDrag();
     gid('GPM_rmTitle').textContent=isNew?'Nouvelle mesure':'Modifier la mesure';
-    gid('GPM_rmGeom').textContent=m.geomType==='area'?('Surface · '+fmtArea(m.areaM2)+(m.rect?' (rectangle)':' (polygone)')):('Ligne · '+fmtLen(m.lengthM));
+    gid('GPM_rmGeom').textContent=m.geomType==='area'?('Surface · '+fmtArea(m.areaM2)+(m.rect?' (rectangle)':' (polygone)')):((m.geomType==='ruler'?'Mesure · ':'Ligne · ')+fmtLen(m.lengthM));
     gid('GPM_rmName').value=m.name||'';
     var appsBox=gid('GPM_rmApps'), secsBox=gid('GPM_rmSecs');
     fillChkGroup(appsBox, APPS[m.geomType]||[], m.apps||[]);
@@ -2771,7 +2795,7 @@ CC_injectUI(CC_boot);
   }
 
   // ═══════════════════════════ Rendu SVG ════════════════════════════════
-  function measColor(m){ if(m.color)return m.color; var a=(m.apps&&m.apps[0]); if(a&&APP_BY_ID[a])return APP_BY_ID[a].color; return m.geomType==='opening'?'#2dd4bf':'#64748b'; }
+  function measColor(m){ if(m.color)return m.color; if(m.geomType==='ruler')return '#fbbf24'; var a=(m.apps&&m.apps[0]); if(a&&APP_BY_ID[a])return APP_BY_ID[a].color; return m.geomType==='opening'?'#2dd4bf':'#64748b'; }
   var GPM_PALETTE=['#4ade80','#2dd4bf','#60a5fa','#a78bfa','#fb7185','#f59e0b','#f97316','#e6edf3'];
   function renderSwatches(box, current, onPick){
     if(!box)return;
@@ -2923,7 +2947,7 @@ CC_injectUI(CC_boot);
     box.innerHTML='';
     S.measures.forEach(function(m){
       var col=measColor(m);
-      var nameTxt=m.geomType==='opening'?(m.name||'Ouverture'):(m.name||(m.geomType==='area'?'Surface':'Ligne'));
+      var nameTxt=m.geomType==='opening'?(m.name||'Ouverture'):(m.name||(m.geomType==='area'?'Surface':(m.geomType==='ruler'?'Mesure':'Ligne')));
       var geomTxt=m.geomType==='opening'?((m.oShape==='poly'||m.oShape==='round')?(fmtArea(m.areaM2)+' · pér. '+fmtLen(m.perimM||0)):(lenVal(m.owM).toFixed(2)+'×'+lenVal(m.ohM).toFixed(2)+' '+lenUnit())):(m.geomType==='area'?(m.pente>0?fmtArea(slopedArea(m))+' (pente '+m.pente+':12)':fmtArea(m.areaM2)):(m.pente>0?fmtLen(m.lengthM*slopeFactor(m.pente))+' (pente '+m.pente+':12)':fmtLen(m.lengthM)));
       if(m.geomType==='line'){var nseg=m.pts.length-1; geomTxt+=' · '+nseg+' seg.';}
       var tags='';
@@ -2999,9 +3023,16 @@ CC_injectUI(CC_boot);
     S.unit=u;
     gid('GPM_uMetric').classList.toggle('active',u==='metric');
     gid('GPM_uImp').classList.toggle('active',u==='imperial');
+    var fs=gid('GPM_fmtSeg'); if(fs)fs.style.display=(u==='imperial')?'inline-flex':'none';
     gid('GPM_globalHUnit').textContent=u==='metric'?'m':'pi';
     gid('GPM_globalH').value=(u==='metric'?S.ceilingH:S.ceilingH/FT_M).toFixed(2);
     updScaleStatus(); renderItems(); redraw();
+  }
+  function setImpFmt(f){
+    S.impFmt=f;
+    var d=gid('GPM_fmtDec'), t=gid('GPM_fmtFtin');
+    if(d)d.classList.toggle('active',f==='dec'); if(t)t.classList.toggle('active',f==='ftin');
+    renderItems(); redraw();
   }
 
   // ═══════════════════════════ ENVOI → CALCULATEUR ══════════════════════
@@ -3019,7 +3050,7 @@ CC_injectUI(CC_boot);
   // construit la liste des cibles d'envoi à partir des mesures de TOUTES les pages
   function allMeasures(){
     var list=[];
-    S.pages.forEach(function(pg){ (pg.measures||[]).forEach(function(m){ list.push(m); }); });
+    S.pages.forEach(function(pg){ (pg.measures||[]).forEach(function(m){ if(m.geomType!=='ruler')list.push(m); }); });
     return list;
   }
   function defaultZoneFor(m){
@@ -3079,6 +3110,7 @@ CC_injectUI(CC_boot);
     var firstSec=(typeof CC_sections!=='undefined'&&CC_sections.length)?CC_sections[0].id:'s1';
     var ft2=function(m){return String(Math.round(slopedArea(m)*M2_FT2*10)/10);};
     measures.forEach(function(m){
+      if(m.geomType==='ruler')return; // règle : jamais injectée
       var mem=membraneTag(m), suf=mem?(' · '+mem):'';
       var secIds=(m.secIds&&m.secIds.length)?m.secIds:(m.secId?[m.secId]:[firstSec]);
       // OUVERTURE : pas d'application, une ligne ouv par section cochée
@@ -3110,6 +3142,7 @@ CC_injectUI(CC_boot);
           return;
         }
         apps.forEach(function(app){
+          if(app==='dalle')return; // la dalle ne s'injecte pas dans le calculateur de cellulose
           { // area
             var lbl=(m.name||'Surface')+suf;
             if(app==='perimetre'){
@@ -3187,6 +3220,7 @@ CC_injectUI(CC_boot);
       if((S.tool==='line'||S.tool==='area')&&!S.scalePxPerM){ alert('Cale d\'abord l\'échelle.'); setTool('scale'); return; }
       if(S.tool==='scale'){ if(!S.drawing)S.drawing={pts:[p]}; else {S.drawing.pts.push(p);finishScale();} redraw(); return; }
       if(S.tool==='line'){ if(!S.drawing)S.drawing={geom:'line',pts:[p]}; else S.drawing.pts.push(p); redraw(); return; }
+      if(S.tool==='ruler'){ if(!S.scalePxPerM){alert('Cale d\'abord l\'échelle.');setTool('scale');return;} if(!S.drawing)S.drawing={geom:'ruler',pts:[p]}; else S.drawing.pts.push(p); redraw(); return; }
       if(S.tool==='area'){
         if(S.areaMode==='rect'){ if(!S.drawing)S.drawing={geom:'area',pts:[p]}; else {S.drawing.pts.push(p);finishAreaRect();} }
         else { if(!S.drawing)S.drawing={geom:'area',pts:[p]}; else S.drawing.pts.push(p); }
@@ -3232,7 +3266,7 @@ CC_injectUI(CC_boot);
             } else {
               m.pts[S.moving.vtx]={x:pm.x,y:pm.y};
               if(m.geomType==='area'){ m.rect=false; m.areaM2=areaM2(m.pts); }
-              else if(m.geomType==='line'){ m.lengthM=lineLenM(m.pts); }
+              else if(m.geomType==='line'||m.geomType==='ruler'){ m.lengthM=lineLenM(m.pts); }
               else if(m.geomType==='opening'&&m.oShape==='poly'){ m.areaM2=areaM2(m.pts); m.perimM=lineLenM(m.pts.concat([m.pts[0]])); }
             }
           } else {
@@ -3255,6 +3289,7 @@ CC_injectUI(CC_boot);
     });
     stage.addEventListener('dblclick',function(e){
       if(S.drawing&&S.tool==='line'){finishMeasure();return;}
+      if(S.drawing&&S.tool==='ruler'){finishRuler();return;}
       if(S.drawing&&S.tool==='area'&&S.areaMode==='poly'&&S.drawing.pts.length>=3){finishMeasure();return;}
       if(S.drawing&&S.tool==='opening'&&S.openMode==='poly'&&S.drawing.pts.length>=3){finishPolyOpening();return;}
       if(!S.drawing){
@@ -3279,22 +3314,53 @@ CC_injectUI(CC_boot);
       }
       if((e.key==='Backspace'||e.key==='Delete')&&S.selIds.length&&!inField){e.preventDefault();deleteSelected();return;}
       if(e.key==='Enter'&&S.drawing&&(S.tool==='line'||(S.tool==='area'&&S.areaMode==='poly')))finishMeasure();
+      if(e.key==='Enter'&&S.drawing&&S.tool==='ruler'&&S.drawing.pts.length>=2)finishRuler();
       if(e.key==='Enter'&&S.drawing&&S.tool==='opening'&&S.openMode==='poly'&&S.drawing.pts.length>=3)finishPolyOpening();
-      if((e.key==='r'||e.key==='R')&&S.tool==='area'&&!inField){ S.areaMode=S.areaMode==='rect'?'poly':'rect'; S.drawing=null; setTool('area'); }
-      if((e.key==='r'||e.key==='R')&&S.tool==='opening'&&!inField){ var oc=['rect','poly','round','point']; S.openMode=oc[(oc.indexOf(S.openMode)+1)%oc.length]; S.drawing=null; setTool('opening'); }
-      // Raccourcis d'outils (clavier) — uniquement hors champ de saisie, sans Ctrl/Cmd, plan chargé
-      if(!inField&&!mod&&S.imgW){
-        var sc={s:'select',l:'line',a:'area',o:'opening',e:'scale',p:'pan',g:'angle'}[(e.key||'').toLowerCase()];
-        if(sc){ var tb=gid('GPM_t_'+(sc==='opening'?'open':sc)); if(tb&&!tb.disabled){ setTool(sc); e.preventDefault(); return; } }
-      }
       if(e.key==='Escape'){
-        // 1er ESC : ferme UNIQUEMENT la modale ouverte (sans toucher au dessin ni à l'overlay)
         var om=el.querySelector('.gpm-modal-bg.show'); if(om){om.classList.remove('show');return;}
-        // 2e ESC (aucune modale) : annule le tracé en cours, sinon ferme la prise de mesure
         if(S.drawing){S.drawing=null;redraw();return;}
-        GPM_close();
+        GPM_close(); return;
+      }
+      if(inField||mod)return; // raccourcis lettres : pas pendant la saisie ni avec Ctrl/Cmd
+      var kk=(e.key||'').toLowerCase();
+      // Shift + Option(alt)
+      if(e.shiftKey&&e.altKey){
+        if(kk==='s'){ openSecManager(); e.preventDefault(); return; }
+        if(kk==='p'){ var fi=gid('GPM_file'); if(fi)fi.click(); e.preventDefault(); return; }
+        return;
+      }
+      // Shift seul
+      if(e.shiftKey){
+        if(kk==='e'){ openSendPanel(); e.preventDefault(); return; }
+        if(kk==='p'){ var pn=gid('GPM_pageName'); if(pn){pn.focus();pn.select();} e.preventDefault(); return; }
+        if(kk==='r'){ renameLastShape(); e.preventDefault(); return; }
+        return;
+      }
+      // Flèches : changer de page
+      if(e.key==='ArrowLeft'){ if(S.cur>0)showPage(S.cur-1); e.preventDefault(); return; }
+      if(e.key==='ArrowRight'){ if(S.cur<S.pages.length-1)showPage(S.cur+1); e.preventDefault(); return; }
+      // Lettres simples : sélection d'outil (plan chargé)
+      if(S.imgW){
+        var TOOLS={s:['select'],l:['line'],m:['ruler'],e:['scale'],a:['angle'],
+                   o:['opening','rect'],i:['opening','poly'],p:['opening','point'],
+                   r:['area','rect'],t:['area','poly']};
+        var act=TOOLS[kk];
+        if(act){
+          var tb=gid('GPM_t_'+(act[0]==='opening'?'open':act[0]));
+          if(tb&&!tb.disabled){
+            if(act[0]==='opening')S.openMode=act[1];
+            if(act[0]==='area')S.areaMode=act[1];
+            S.drawing=null; setTool(act[0]); e.preventDefault(); return;
+          }
+        }
       }
     });
+  }
+  function renameLastShape(){
+    if(!S.measures.length)return;
+    var m=S.measures[S.measures.length-1]; setSel([m.id]);
+    if(m.geomType==='opening')editOpening(m); else openRoleModal(m,false);
+    setTimeout(function(){var n=gid(m.geomType==='opening'?'GPM_opName':'GPM_rmName'); if(n){n.focus();n.select();}},50);
   }
 
   // rend un élément déplaçable par une poignée (translate cumulatif)
@@ -3319,8 +3385,10 @@ CC_injectUI(CC_boot);
     fileInput.onchange=function(e){
       var f=e.target.files[0];
       if(f){
-        var hasWork=(S.pages||[]).some(function(p){return p.measures&&p.measures.length;});
-        if(hasWork&&!window.confirm('Remplacer le plan actuel ? Les mesures déjà prises seront retirées.')){ e.target.value=''; return; }
+        // On confirme seulement si un VRAI plan est déjà chargé avec des mesures (vrai remplacement).
+        // Après un projet JSON restauré (pages sans image), on rattache sans confirmation ni perte.
+        var hasRealWork=(S.pages||[]).some(function(p){return !p.restored && p.measures&&p.measures.length;});
+        if(hasRealWork&&!window.confirm('Remplacer le plan actuel ? Les mesures déjà prises seront retirées.')){ e.target.value=''; return; }
         loadFile(f);
       }
       e.target.value='';
@@ -3331,6 +3399,8 @@ CC_injectUI(CC_boot);
     gid('GPM_zoomOut').onclick=function(){S.zoom=Math.max(0.1,S.zoom*0.83);applyTransform();};
     gid('GPM_uMetric').onclick=function(){setUnit('metric');};
     gid('GPM_uImp').onclick=function(){setUnit('imperial');};
+    gid('GPM_fmtDec').onclick=function(){setImpFmt('dec');};
+    gid('GPM_fmtFtin').onclick=function(){setImpFmt('ftin');};
     gid('GPM_globalH').oninput=function(e){var v=parseFloat(e.target.value);if(v>0)S.ceilingH=S.unit==='metric'?v:v*FT_M;};
     gid('GPM_pageName').oninput=function(e){if(S.pages[S.cur]){S.pages[S.cur].name=e.target.value||('Page '+(S.cur+1));renderPageTabs();}};
     gid('GPM_closeBtn').onclick=function(){GPM_close();};
@@ -3381,9 +3451,19 @@ CC_injectUI(CC_boot);
     if(built&&S.pages.length){ S.pdfDoc=null; var em=gid('GPM_empty'); if(em)em.style.display='none'; var zc=gid('GPM_zoomctl'); if(zc)zc.style.display='flex'; showPage(S.cur); renderPageTabs(); }
   };
   window.GPM_close=function(){ if(el)el.classList.remove('show'); };
+  window.GPM_reset=function(){
+    // Repart de zéro : aucune page, aucune mesure (appelé par « Nouveau » du calculateur).
+    S.pages=[]; S.cur=0; S.measures=[]; S.scalePxPerM=null; S.pdfDoc=null; S.imgSrc=null;
+    S.drawing=null; S.angleAnn=null; S.band=null; S.moving=null; setSel([]); S.imgW=0; S.imgH=0;
+    if(!built)return;
+    var em=gid('GPM_empty'); if(em)em.style.display='';
+    var zc=gid('GPM_zoomctl'); if(zc)zc.style.display='none';
+    ['GPM_t_scale','GPM_t_line','GPM_t_ruler','GPM_t_area','GPM_t_open','GPM_t_pan','GPM_t_select','GPM_t_angle'].forEach(function(id){var b=gid(id);if(b)b.disabled=true;});
+    if(draw)draw.innerHTML=''; renderItems(); renderPageTabs();
+  };
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS };
   }
 })();
