@@ -2576,6 +2576,7 @@ CC_injectUI(CC_boot);
       '<div style="font-size:12px;color:#8896a5;margin:12px 0 4px" id="GPM_smSep">— ou échelle directe —</div>'+
       '<label id="GPM_smDirectLbl">px par pi</label>'+
       '<input type="number" id="GPM_smDirect" step="any" placeholder="ex. 30.5 (laisser vide pour utiliser les 2 points)">'+
+      '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:12px 0 0"><input type="checkbox" id="GPM_smAll" style="width:auto" checked> Appliquer cette échelle à toutes les pages</label>'+
       '<div class="gpm-mbtns"><button class="gpm-cancel" id="GPM_smCancel">Annuler</button><button class="gpm-ok" id="GPM_smOk">Caler</button></div>'+
     '</div></div>'+
     // barre ouverture
@@ -2844,6 +2845,7 @@ CC_injectUI(CC_boot);
     gid('GPM_smDirectLbl').textContent='px par '+(S.unit==='metric'?'mètre':'pi');
     gid('GPM_smSep').style.display=spec?'none':'';
     gid('GPM_smDirect').value='';
+    var _all=gid('GPM_smAll'); if(_all)_all.checked=true;
     modal.classList.add('show');
     setTimeout(function(){ var f=gid(spec?'GPM_smDirect':(S.unit==='metric'?'GPM_smMM':'GPM_smFt')); if(f){f.focus();f.select&&f.select();} },30);
     function flag(id){ var e=gid(id); if(e)e.style.borderColor='#f87171'; }
@@ -2861,7 +2863,9 @@ CC_injectUI(CC_boot);
         var a=S.drawing.pts[0], b=S.drawing.pts[1], distPx=Math.hypot(b.x-a.x,b.y-a.y); if(!distPx)return;
         S.scalePxPerM=distPx/realM;
       }
-      if(S.pages[S.cur])S.pages[S.cur].scalePxPerM=S.scalePxPerM;
+      var applyAll=gid('GPM_smAll')&&gid('GPM_smAll').checked;
+      if(applyAll){ S.pages.forEach(function(pg){ pg.scalePxPerM=S.scalePxPerM; }); }
+      else if(S.pages[S.cur]){ S.pages[S.cur].scalePxPerM=S.scalePxPerM; }
       modal.classList.remove('show'); cleanup(); S.drawing=null;
       updScaleStatus(); redraw(); setTool(S.drawTool); renderPageTabs();
     }
@@ -3566,7 +3570,16 @@ CC_injectUI(CC_boot);
         '</div>';
       }).join('');
     }
-    showSent.checked=false; showSent.onchange=render; render();
+    showSent.checked=false;
+    showSent.onchange=function(){
+      if(showSent.checked){
+        if(!confirm('Afficher les mesures déjà envoyées permet de les RÉINJECTER dans le calculateur — cela créera des doublons des lignes déjà présentes. Continuer ?')){
+          showSent.checked=false; return;
+        }
+      }
+      render();
+    };
+    render();
     modal.classList.add('show');
     gid('GPM_sendCancel').onclick=function(){modal.classList.remove('show');};
     gid('GPM_sendOk').onclick=function(){
