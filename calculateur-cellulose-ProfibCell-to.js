@@ -254,7 +254,12 @@ function CC_navTo(id){
     if(/^sec-/.test(id))CC_activeSec=id;
     document.querySelectorAll('.nav-btn[data-target]').forEach(function(b){b.classList.toggle('active',b.dataset.target===id);});
     CC_applyViewMode();
-    window.scrollTo({top:0,behavior:'smooth'});
+    // défiler juste assez pour amener la section sous l'en-tête collante (pas tout en haut de la page Odoo)
+    var navT=document.querySelector('.inputs-nav');
+    var offT=(navT?navT.getBoundingClientRect().height:120)+90;
+    var topT=el.getBoundingClientRect().top+window.scrollY-offT;
+    var navTop=(document.querySelector('.inputs-nav')||el).getBoundingClientRect().top+window.scrollY-20;
+    window.scrollTo({top:Math.max(0,Math.min(topT,navTop)),behavior:'smooth'});
     return;
   }
   var nav=document.querySelector('.inputs-nav');
@@ -827,6 +832,7 @@ function CC_dupRow(zone,id){
   if(idx<0)return;
   var copy=JSON.parse(JSON.stringify(rows[idx]));
   copy.id=CC_newRowId();
+  delete copy._gpmId; // la copie est une ligne indépendante, non liée à la mesure du plan
   rows.splice(idx+1,0,copy);
   CC_renderTable(zone);
   CC_recalc();
@@ -1703,8 +1709,7 @@ function CC_newProject(){
   CC_sections=[{id:'s1',name:'RDC'}];
   ['CC_projNo','CC_projNom','CC_projCli','CC_projEnt','CC_projAdr','CC_projVille','CC_projProv','CC_projCP','CC_projNotes'].forEach(function(id){var el=CC_gid(id);if(el)el.value='';});
   CC_renderSectionsBar();
-  CC_renderAllTables();
-  CC_addRow('murs');
+  CC_seedExampleRows(); // une ligne vierge par section (grenier/plafonds/murs/ouv), comme au 1er chargement
   CC_recalc();
   if(typeof window!=='undefined'&&typeof window.GPM_reset==='function')window.GPM_reset(); // vide aussi la prise de mesure
 }
@@ -2451,6 +2456,7 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-xform button{width:40px;height:40px;border:1px solid #2e3a48;background:#222c38;color:#cbd5e1;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;}'+
     '#GPM_overlay .gpm-xform button:hover{color:#fff;border-color:#8896a5;background:#28323f;}'+
     '#GPM_overlay .gpm-xform button svg{width:19px;height:19px;}'+
+    '#GPM_overlay .gpm-xform-sep{height:1px;background:#2e3a48;margin:3px 2px;}'+
     '';
     var st=document.createElement('style'); st.id='GPM_style'; st.textContent=css; document.head.appendChild(st);
   }
@@ -2530,6 +2536,11 @@ CC_injectUI(CC_boot);
           '<button id="GPM_xfY" title="Symétrie verticale (Shift+V)">'+svgIco('<path d="M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4"/>')+'</button>'+
           '<button id="GPM_xf90" title="Rotation 90° horaire">'+svgIco('<path d="M21 12a9 9 0 11-3-6.7M21 3v5h-5"/>')+'</button>'+
           '<button id="GPM_xfA" title="Rotation par angle">'+svgIco('<path d="M4 20h16M4 20L16 8M4 20a10 10 0 0010-10"/>')+'</button>'+
+          '<div class="gpm-xform-sep"></div>'+
+          '<button id="GPM_zFront" title="Mettre tout à l\'avant">'+svgIco('<rect x="7" y="7" width="11" height="11" rx="1.5" fill="#cbd5e1" stroke="none"/><path d="M3 14V4a1 1 0 011-1h10"/>')+'</button>'+
+          '<button id="GPM_zFwd" title="Avancer d\'un cran">'+svgIco('<path d="M12 5v14M6 11l6-6 6 6"/>')+'</button>'+
+          '<button id="GPM_zBwd" title="Reculer d\'un cran">'+svgIco('<path d="M12 19V5M6 13l6 6 6-6"/>')+'</button>'+
+          '<button id="GPM_zBack" title="Mettre tout à l\'arrière">'+svgIco('<rect x="6" y="6" width="11" height="11" rx="1.5"/><path d="M21 10v10a1 1 0 01-1 1H10"/>')+'</button>'+
         '</div>'+
       '</div>'+
       '<div class="gpm-panel">'+
@@ -3417,6 +3428,17 @@ CC_injectUI(CC_boot);
     var v=(typeof window!=='undefined'&&window.prompt)?window.prompt('Rotation en degrés (sens horaire) :','90'):null;
     if(v==null)return; var d=parseFloat(v); if(!isNaN(d)&&d!==0)rotateSel(d);
   }
+  function zOrder(mode){
+    var ids=selIdsActive(); if(!ids.length)return 0;
+    var inSel=function(m){return ids.indexOf(m.id)>=0;}, notSel=function(m){return ids.indexOf(m.id)<0;};
+    var arr=S.measures.slice(); pushUndo();
+    if(mode==='front'){ arr=arr.filter(notSel).concat(arr.filter(inSel)); }
+    else if(mode==='back'){ arr=arr.filter(inSel).concat(arr.filter(notSel)); }
+    else if(mode==='forward'){ for(var i=arr.length-2;i>=0;i--){ if(inSel(arr[i])&&!inSel(arr[i+1])){ var t=arr[i];arr[i]=arr[i+1];arr[i+1]=t; } } }
+    else if(mode==='backward'){ for(var j=1;j<arr.length;j++){ if(inSel(arr[j])&&!inSel(arr[j-1])){ var u=arr[j];arr[j]=arr[j-1];arr[j-1]=u; } } }
+    S.measures=arr; if(S.pages[S.cur])S.pages[S.cur].measures=arr;
+    renderItems(); redraw(); return ids.length;
+  }
   function updateXform(){ var x=gid('GPM_xform'); if(x)x.style.display=selIdsActive().length?'flex':'none'; }
   function applySectionToSelected(sid){
     pushUndo();
@@ -3896,6 +3918,8 @@ CC_injectUI(CC_boot);
     gid('GPM_kbdClose').onclick=function(){gid('GPM_kbdModal').classList.remove('show');};
     gid('GPM_xfX').onclick=function(){flipXSel();}; gid('GPM_xfY').onclick=function(){flipYSel();};
     gid('GPM_xf90').onclick=function(){rotateSel(90);}; gid('GPM_xfA').onclick=function(){rotateSelPrompt();};
+    gid('GPM_zFront').onclick=function(){zOrder('front');}; gid('GPM_zFwd').onclick=function(){zOrder('forward');};
+    gid('GPM_zBwd').onclick=function(){zOrder('backward');}; gid('GPM_zBack').onclick=function(){zOrder('back');};
     gid('GPM_secAdd').onclick=function(){addSecFromTakeoff();};
     gid('GPM_secClose').onclick=function(){gid('GPM_secModal').classList.remove('show');};
     gid('GPM_aiSaveUrl').onclick=function(){ aiSetUrl(gid('GPM_aiUrl').value.trim()); gid('GPM_aiCfg').style.display=aiProxyUrl()?'none':'block'; gid('GPM_aiStatus').textContent=aiProxyUrl()?'URL enregistrée. Encadre un tableau d\'ouvertures sur le plan.':'URL vide.'; };
@@ -4006,6 +4030,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiDetectSurfaces:aiDetectSurfaces, aiBuildSurfaces:aiBuildSurfaces, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening, liveDimSvg:liveDimSvg, addSectionInto:addSectionInto, finishScale:finishScale, showScaleModal:showScaleModal, openScaleSpec:openScaleSpec, flipXSel:flipXSel, flipYSel:flipYSel, rotateSel:rotateSel, snapHV:snapHV, transformSelected:transformSelected, hitEdge:hitEdge, setRectFromBBox:setRectFromBBox, isAxisRect:isAxisRect, rectEdgeMids:rectEdgeMids, rectBBox:rectBBox };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiDetectSurfaces:aiDetectSurfaces, aiBuildSurfaces:aiBuildSurfaces, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening, liveDimSvg:liveDimSvg, addSectionInto:addSectionInto, finishScale:finishScale, showScaleModal:showScaleModal, openScaleSpec:openScaleSpec, flipXSel:flipXSel, flipYSel:flipYSel, rotateSel:rotateSel, snapHV:snapHV, transformSelected:transformSelected, zOrder:zOrder, hitEdge:hitEdge, setRectFromBBox:setRectFromBBox, isAxisRect:isAxisRect, rectEdgeMids:rectEdgeMids, rectBBox:rectBBox };
   }
 })();
