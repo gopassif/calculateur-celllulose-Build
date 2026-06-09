@@ -1770,13 +1770,12 @@ function CC_doPDF(){
 
   function footer(pg,tot){
     fr(0,FY,216,FH,FOOT_BG);hl(FY,RULE,0.2);
-    sf(false,6.5,[107,116,112]);
+    sf(false,6,[107,116,112]);
     tx(CC_BUREAU.nom+' \u00b7 '+CC_BUREAU.adr1,LM,FY+6.5);
     tx(CC_BUREAU.tel+' \u00b7 '+CC_BUREAU.email,LM,FY+11.5);
-    sf(false,6.5,[107,116,112]);
-    tx('Calculateur de cellulose souffl\u00e9e \u00b7 PROFIB CELL',108,FY+6.5,{align:'center'});
-    tx('No '+(p.no||'\u2014')+' \u00b7 '+dateStr,108,FY+11.5,{align:'center'});
-    sf(true,8,LABEL);tx('Page '+pg+' / '+tot,LM+PW,FY+9,{align:'right'});
+    tx('Calculateur de cellulose souffl\u00e9e \u00b7 PROFIB CELL',LM+PW,FY+6.5,{align:'right'});
+    tx('No '+(p.no||'\u2014')+' \u00b7 '+dateStr,LM+PW,FY+11.5,{align:'right'});
+    sf(true,8,LABEL);tx('Page '+pg+' / '+tot,108,FY+9,{align:'center'});
   }
   function header(title,pg,tot){
     fr(0,0,216,12,WHITE);
@@ -2125,7 +2124,7 @@ CC_injectUI(CC_boot);
 
   // ── État ───────────────────────────────────────────────────────────────
   var S={
-    unit:'metric', impFmt:'dec', aiMode:'opening', scaleMode:'draw', tool:null, drawTool:'line',
+    unit:'metric', impFmt:'dec', aiMode:'opening', scaleMode:'draw', snap:true, tool:null, drawTool:'line',
     zoom:1, panX:40, panY:40, drawing:null, hover:null,
     areaMode:'poly',            // 'poly' | 'rect' pour l'outil Surface
     openMode:'rect',            // 'rect' | 'point' | 'poly' | 'round' pour l'outil Ouverture
@@ -2182,6 +2181,17 @@ CC_injectUI(CC_boot);
   function measurePoint(m){ if(m.geomType==='opening'&&(m.oShape==='point'||m.oShape==='round'||!m.oShape))return m.pts[0]; return centroid(m.pts); }
   function ptInRect(p,r){ return p.x>=Math.min(r.x0,r.x1)&&p.x<=Math.max(r.x0,r.x1)&&p.y>=Math.min(r.y0,r.y1)&&p.y<=Math.max(r.y0,r.y1); }
   function hitVertex(m,p){ var tol=10/(S.zoom||1); for(var i=0;i<m.pts.length;i++){ if(Math.hypot(p.x-m.pts[i].x,p.y-m.pts[i].y)<tol)return i; } return -1; }
+  function isAxisRect(m){ return (m.geomType==='area'&&m.rect&&m.pts.length===4)||(m.geomType==='opening'&&m.oShape==='rect'&&m.pts.length>=4); }
+  function rectBBox(m){ var xs=m.pts.map(function(p){return p.x;}),ys=m.pts.map(function(p){return p.y;}); return {x0:Math.min.apply(null,xs),y0:Math.min.apply(null,ys),x1:Math.max.apply(null,xs),y1:Math.max.apply(null,ys)}; }
+  function rectEdgeMids(m){ var b=rectBBox(m); return [ {x:(b.x0+b.x1)/2,y:b.y0,edge:0}, {x:b.x1,y:(b.y0+b.y1)/2,edge:1}, {x:(b.x0+b.x1)/2,y:b.y1,edge:2}, {x:b.x0,y:(b.y0+b.y1)/2,edge:3} ]; }
+  function hitEdge(m,p){ if(!isAxisRect(m))return -1; var tol=10/(S.zoom||1), mids=rectEdgeMids(m); for(var i=0;i<mids.length;i++){ if(Math.hypot(p.x-mids[i].x,p.y-mids[i].y)<tol)return mids[i].edge; } return -1; }
+  function setRectFromBBox(m,b){
+    if(b.x1-b.x0<2)b.x1=b.x0+2; if(b.y1-b.y0<2)b.y1=b.y0+2;
+    m.pts=[{x:b.x0,y:b.y0},{x:b.x1,y:b.y0},{x:b.x1,y:b.y1},{x:b.x0,y:b.y1}];
+    if(m.geomType==='opening'){ if(S.scalePxPerM){ m.owM=(b.x1-b.x0)/S.scalePxPerM; m.ohM=(b.y1-b.y0)/S.scalePxPerM; } }
+    else { if(S.scalePxPerM){ m.rectWM=(b.x1-b.x0)/S.scalePxPerM; m.rectHM=(b.y1-b.y0)/S.scalePxPerM; } m.areaM2=areaM2(m.pts); m.rect=true; }
+  }
+  function edgeHandlesSvg(m){ if(!isAxisRect(m))return ''; var s=''; rectEdgeMids(m).forEach(function(e){ s+='<rect x="'+(e.x-5)+'" y="'+(e.y-5)+'" width="10" height="10" rx="2" fill="#fbbf24" stroke="#1a1a1a" stroke-width="1.5"/>'; }); return s; }
   function pushUndo(){ try{S.undo.push(JSON.stringify(S.measures)); if(S.undo.length>40)S.undo.shift();}catch(e){} }
   function doUndo(){ if(!S.undo.length)return; var prev=S.undo.pop(); try{S.measures=JSON.parse(prev); S.pages[S.cur].measures=S.measures; setSel([]); renderItems(); redraw();}catch(e){} }
   function cloneMeasure(m,offset){ var c=JSON.parse(JSON.stringify(m)); c.id=idc++; c.sent=false; if(offset&&Array.isArray(c.pts))c.pts=c.pts.map(function(q){return {x:q.x+offset,y:q.y+offset};}); return c; }
@@ -2374,6 +2384,8 @@ CC_injectUI(CC_boot);
     '#GPM_overlay .gpm-chkgrp{display:flex;flex-direction:column;gap:5px;margin:0 0 4px;}'+
     '#GPM_overlay .gpm-chkgrp label{display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0;cursor:pointer;}'+
     '#GPM_overlay .gpm-chkgrp input{width:auto;}'+
+    '#GPM_overlay .gpm-snap{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#cbd5e1;cursor:pointer;margin-left:4px;}'+
+    '#GPM_overlay .gpm-snap input{cursor:pointer;}'+
     '#GPM_overlay .gpm-kbd{font-size:13px;color:#e6edf3;max-height:60vh;overflow:auto;}'+
     '#GPM_overlay .gpm-kbd-h{color:#8896a5;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px;}'+
     '#GPM_overlay .gpm-kbd-row{display:grid;grid-template-columns:auto auto;justify-content:start;gap:18px;align-items:baseline;padding:3px 0;border-bottom:1px solid #1f2832;}'+
@@ -2440,7 +2452,9 @@ CC_injectUI(CC_boot);
           '<button class="gpm-tool" id="GPM_t_ai" data-tool="aiselect" disabled title="Assistance AI (survole pour les modes)">'+svgIco('<path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/>')+'AI</button>'+
           '<div class="gpm-flyout">'+
             '<button class="gpm-sub gpm-sub-txt" data-tool="aiselect" data-sub="opening" title="Détecter un tableau d\'ouvertures">'+svgIco('<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M5 12h14"/>')+'AI Ouverture</button>'+
+            /* MASQUÉ (peu fiable pour l\'instant — code conservé) : AI Surfaces
             '<button class="gpm-sub gpm-sub-txt" data-tool="aiselect" data-sub="surface" title="Détecter surfaces et périmètres">'+svgIco('<path d="M4 6l6-2 10 3-2 11-12-2z"/>')+'AI Surfaces</button>'+
+            */
           '</div>'+
         '</div>'+
         '<button class="gpm-tool" id="GPM_t_select" data-tool="select" disabled title="Sélectionner / déplacer (s)">'+svgIco('<path d="M5 3l7 17 2-7 7-2z"/>')+'Sélect.</button>'+
@@ -2473,6 +2487,7 @@ CC_injectUI(CC_boot);
           '<div class="gpm-scale no" id="GPM_scaleStatus">Non calée</div>'+
           '<div class="gpm-unit"><button class="active" id="GPM_uMetric">métrique</button><button id="GPM_uImp">impérial</button></div>'+
           '<div class="gpm-unit" id="GPM_fmtSeg" style="display:none"><button class="active" id="GPM_fmtDec">0.5 pi</button><button id="GPM_fmtFtin">pi + po</button><button id="GPM_fmtIn">po</button></div>'+
+          '<label class="gpm-snap" title="Magnétisme horizontal/vertical (Shift force toujours)"><input type="checkbox" id="GPM_snapChk" checked> Magnétisme</label>'+
           '<div class="gpm-hrow"><span>Hauteur murs</span><input type="number" id="GPM_globalH" step="any" value="8"><span id="GPM_globalHUnit">pi</span></div>'+
         '</div>'+
         '<div class="gpm-sec" style="flex:1;display:flex;flex-direction:column;min-height:0;padding:0">'+
@@ -2515,6 +2530,7 @@ CC_injectUI(CC_boot);
       '<label>Membranes</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0 0 6px"><input type="checkbox" id="GPM_rmMemInt" style="width:auto"> Membrane intérieure</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0"><input type="checkbox" id="GPM_rmMemExt" style="width:auto"> Membrane extérieure</label>'+
+      '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#fca5a5;margin:8px 0 0"><input type="checkbox" id="GPM_rmNeg" style="width:auto"> Trémie / escalier (soustraire — surface négative)</label>'+
       '<label>Couleur</label><div id="GPM_rmColor" class="gpm-colorrow"></div>'+
       '<div id="GPM_rmPenteRow" style="display:none"><label>Pente (x:12) — surface/ligne inclinée, vide = à plat <span id="GPM_rmPenteDeg" style="color:#8896a5"></span></label><input type="number" id="GPM_rmPente" step="any" placeholder="ex. 6"></div>'+
       '<div id="GPM_rmHRow" style="display:none"><label>Hauteur pour cette mesure (<span class="gpm-ou">m</span>) — vide = globale</label><input type="number" id="GPM_rmH" step="any"></div>'+
@@ -2911,6 +2927,7 @@ CC_injectUI(CC_boot);
     fillChkGroup(secsBox, secItems, (m.secIds&&m.secIds.length)?m.secIds:[secItems[0].id]);
     gid('GPM_rmMemInt').checked=!!m.memInt;
     gid('GPM_rmMemExt').checked=!!m.memExt;
+    gid('GPM_rmNeg').checked=!!m.negative;
     renderSwatches(gid('GPM_rmColor'), m.color||'', function(c){ m.color=c; redraw(); });
     var hRow=gid('GPM_rmHRow');
     Array.prototype.forEach.call(el.querySelectorAll('.gpm-ou'),function(s){s.textContent=lenUnit();});
@@ -2947,6 +2964,7 @@ CC_injectUI(CC_boot);
       m.secIds=readChkGroup(secsBox);
       m.memInt=gid('GPM_rmMemInt').checked;
       m.memExt=gid('GPM_rmMemExt').checked;
+      m.negative=gid('GPM_rmNeg').checked;
       var hv=gid('GPM_rmH').value;
       m.height=(hv&&parseFloat(hv)>0)?(S.unit==='metric'?parseFloat(hv):parseFloat(hv)*FT_M):null;
       m.pente=(m.geomType==='area'||m.geomType==='line')?(parseFloat(gid('GPM_rmPente').value)||0):0;
@@ -3162,7 +3180,8 @@ CC_injectUI(CC_boot);
   function snapHV(last,p,shift){
     if(!last)return p;
     var dx=p.x-last.x, dy=p.y-last.y, adx=Math.abs(dx), ady=Math.abs(dy);
-    if(shift){ return (adx>=ady)?{x:p.x,y:last.y}:{x:last.x,y:p.y}; } // Shift = forcer droit
+    if(shift){ return (adx>=ady)?{x:p.x,y:last.y}:{x:last.x,y:p.y}; } // Shift = forcer droit (toujours)
+    if(!S.snap)return p; // magnétisme désactivé
     var T=0.09; // aide douce ~5°
     if(adx>0&&ady/adx<T)return {x:p.x,y:last.y};
     if(ady>0&&adx/ady<T)return {x:last.x,y:p.y};
@@ -3194,6 +3213,7 @@ CC_injectUI(CC_boot);
           var psr=m.pts.map(function(q){return q.x+','+q.y;}).join(' ');
           svg+='<polygon points="'+psr+'" fill="'+col+'33" stroke="'+col+'" stroke-width="'+(sel?4:2.5)+'"/>';
           if(sel)m.pts.forEach(function(q){svg+='<circle cx="'+q.x+'" cy="'+q.y+'" r="6" fill="#ffffff" stroke="'+col+'" stroke-width="2"/>';});
+          if(sel)svg+=edgeHandlesSvg(m);
           var lbRc=labelBase(m), ofRc=m.labelOff||{dx:0,dy:0};
           svg+=labelSVG(lbRc.x+ofRc.dx,lbRc.y+ofRc.dy,measLabel(m));
           return;
@@ -3208,6 +3228,7 @@ CC_injectUI(CC_boot);
       if(m.geomType==='area')svg+='<polygon points="'+pStr+'" fill="'+col+'33" stroke="'+col+'" stroke-width="'+(sel?4:2.5)+'"/>';
       else svg+='<polyline points="'+pStr+'" fill="none" stroke="'+col+'" stroke-width="'+(sel?4:2.5)+'"/>';
       m.pts.forEach(function(p){var hr=sel?6:3.5;svg+='<circle cx="'+p.x+'" cy="'+p.y+'" r="'+hr+'" fill="'+(sel?'#ffffff':col)+'" stroke="'+col+'" stroke-width="'+(sel?2:0)+'"/>';});
+      if(sel)svg+=edgeHandlesSvg(m);
       var lbA=labelBase(m), ofA=m.labelOff||{dx:0,dy:0};
       svg+=labelSVG(lbA.x+ofA.dx,lbA.y+ofA.dy,measLabel(m));
     });
@@ -3526,15 +3547,16 @@ CC_injectUI(CC_boot);
                 rmp.label=(m.name||'Périmètre')+' #'+(k+1)+suf; setDim(rmp,'l',len2); setDim(rmp,'h',hM);
                 CC_rows.murs.push(rmp); touched.murs=1; count++; }
             } else if(app==='mur'){
-              var rmu=CC_defaultRow('murs'); rmu.secId=secId; rmu.label=lbl; rmu.surf=ft2(m);
+              var rmu=CC_defaultRow('murs'); rmu.secId=secId; rmu.label=(m.negative?'\u2212 ':'')+lbl; rmu.surf=(m.negative?-1:1)*ft2(m);
               CC_rows.murs.push(rmu); touched.murs=1; count++;
             } else if(app==='pignon'){
-              var rpg=CC_defaultRow('pig'); rpg.secId=secId; rpg.label=lbl; rpg.surf=ft2(m);
+              var rpg=CC_defaultRow('pig'); rpg.secId=secId; rpg.label=(m.negative?'\u2212 ':'')+lbl; rpg.surf=(m.negative?-1:1)*ft2(m);
               CC_rows.pig.push(rpg); touched.pig=1; count++;
             } else {
               var zone=(app==='grenier'||app==='toiture')?'grenier':'plafonds';
-              var rr=CC_defaultRow(zone); rr.secId=secId; rr.label=lbl;
-              if(m.rect&&!(m.pente>0)){ setDim(rr,'l',m.rectWM); setDim(rr,'w',m.rectHM); }
+              var rr=CC_defaultRow(zone); rr.secId=secId; rr.label=(m.negative?'\u2212 ':'')+lbl;
+              if(m.negative){ rr.surf=-ft2(m); }
+              else if(m.rect&&!(m.pente>0)){ setDim(rr,'l',m.rectWM); setDim(rr,'w',m.rectHM); }
               else { rr.surf=ft2(m); }
               CC_rows[zone].push(rr); touched[zone]=1; count++;
             }
@@ -3581,6 +3603,7 @@ CC_injectUI(CC_boot);
           if(hitLabel(sel,p)){ S.moving={id:sel.id,last:p,moved:false,label:true}; redraw(); return; }
           var vEdit=(sel.geomType!=='opening'||sel.oShape==='poly'||sel.oShape==='rect');
           if(vEdit){ var vi=hitVertex(sel,p); if(vi>=0){ var mv={id:sel.id,last:p,moved:false,vtx:vi}; if(sel.oShape==='rect'){var opp=sel.pts[(vi+2)%4];mv.anchor={x:opp.x,y:opp.y};} S.moving=mv; redraw(); return; } }
+          var ei=hitEdge(sel,p); if(ei>=0){ S.moving={id:sel.id,last:p,moved:false,edge:ei}; redraw(); return; }
         }
         var hit=hitMeasure(p);
         if(e.shiftKey){
@@ -3647,6 +3670,11 @@ CC_injectUI(CC_boot);
               else if(m.geomType==='line'||m.geomType==='ruler'){ m.lengthM=lineLenM(m.pts); }
               else if(m.geomType==='opening'&&m.oShape==='poly'){ m.areaM2=areaM2(m.pts); m.perimM=lineLenM(m.pts.concat([m.pts[0]])); }
             }
+          } else if(S.moving.edge!=null){
+            var bb=rectBBox(m);
+            if(S.moving.edge===0)bb.y0=pm.y; else if(S.moving.edge===1)bb.x1=pm.x; else if(S.moving.edge===2)bb.y1=pm.y; else bb.x0=pm.x;
+            if(bb.x1<bb.x0){var t=bb.x0;bb.x0=bb.x1;bb.x1=t;} if(bb.y1<bb.y0){var t2=bb.y0;bb.y0=bb.y1;bb.y1=t2;}
+            setRectFromBBox(m,bb);
           } else {
             translateMeasure(m,pm.x-S.moving.last.x,pm.y-S.moving.last.y);
           }
@@ -3803,6 +3831,7 @@ CC_injectUI(CC_boot);
     gid('GPM_fmtDec').onclick=function(){setImpFmt('dec');};
     gid('GPM_fmtFtin').onclick=function(){setImpFmt('ftin');};
     gid('GPM_fmtIn').onclick=function(){setImpFmt('in');};
+    gid('GPM_snapChk').onchange=function(){S.snap=this.checked;};
     gid('GPM_globalH').oninput=function(e){var v=parseFloat(e.target.value);if(v>0)S.ceilingH=S.unit==='metric'?v:v*FT_M;};
     gid('GPM_pageName').oninput=function(e){if(S.pages[S.cur]){S.pages[S.cur].name=e.target.value||('Page '+(S.cur+1));renderPageTabs();}};
     gid('GPM_closeBtn').onclick=function(){GPM_close();};
@@ -3876,6 +3905,6 @@ CC_injectUI(CC_boot);
 
   // Hook de test : inerte en production (window.__GPM_TEST__ non défini).
   if(typeof window!=='undefined'&&window.__GPM_TEST__){
-    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiDetectSurfaces:aiDetectSurfaces, aiBuildSurfaces:aiBuildSurfaces, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening, liveDimSvg:liveDimSvg, addSectionInto:addSectionInto, finishScale:finishScale, showScaleModal:showScaleModal, openScaleSpec:openScaleSpec, flipXSel:flipXSel, flipYSel:flipYSel, rotateSel:rotateSel, snapHV:snapHV, transformSelected:transformSelected };
+    window.GPM__test={ S:S, injectToCalculateur:injectToCalculateur, setDim:setDim, mToImpFields:mToImpFields, defaultZoneFor:defaultZoneFor, openOpeningModal:openOpeningModal, openRoleModal:openRoleModal, membraneTag:membraneTag, setTool:setTool, duplicateMeasure:duplicateMeasure, hitMeasure:hitMeasure, translateMeasure:translateMeasure, pushUndo:pushUndo, doUndo:doUndo, cloneMeasure:cloneMeasure, hitVertex:hitVertex, slopeFactor:slopeFactor, slopedArea:slopedArea, areaM2:areaM2, lineLenM:lineLenM, angleABC:angleABC, penteX12:penteX12, setTool:setTool, finishAngle:finishAngle, finishPolyOpening:finishPolyOpening, finishRoundOpening:finishRoundOpening, selectSub:selectSub, centroid:centroid, rectCornersPx:rectCornersPx, hitLabel:hitLabel, hitAngleLabel:hitAngleLabel, labelBase:labelBase, addSecFromTakeoff:addSecFromTakeoff, openSecManager:openSecManager, renderSecManager:renderSecManager, setSel:setSel, isSel:isSel, deleteSelected:deleteSelected, measurePoint:measurePoint, ptInRect:ptInRect, measColor:measColor, deleteMeasure:deleteMeasure, finishRuler:finishRuler, setImpFmt:setImpFmt, fmtLen:fmtLen, fmtFtIn:fmtFtIn, mergeRestored:mergeRestored, setUnit:setUnit, APPS:APPS, aiDetect:aiDetect, aiDetectSurfaces:aiDetectSurfaces, aiBuildSurfaces:aiBuildSurfaces, aiBuildMeasures:aiBuildMeasures, aiApply:aiApply, aiApplyInject:aiApplyInject, renderAIReview:renderAIReview, aiProxyUrl:aiProxyUrl, aiSetUrl:aiSetUrl, cropRegion:cropRegion, inToFields:inToFields, applySectionToSelected:applySectionToSelected, trimNum:trimNum, updScaleStatus:updScaleStatus, editOpening:editOpening, liveDimSvg:liveDimSvg, addSectionInto:addSectionInto, finishScale:finishScale, showScaleModal:showScaleModal, openScaleSpec:openScaleSpec, flipXSel:flipXSel, flipYSel:flipYSel, rotateSel:rotateSel, snapHV:snapHV, transformSelected:transformSelected, hitEdge:hitEdge, setRectFromBBox:setRectFromBBox, isAxisRect:isAxisRect, rectEdgeMids:rectEdgeMids, rectBBox:rectBBox };
   }
 })();
