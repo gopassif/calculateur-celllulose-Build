@@ -233,7 +233,7 @@ function CC_rowSurf(row,kind){
   }
   if(a>0&&b>0)return {surf:CC_surfFromDims(a,b),fromDims:true};
   var man=CC_pf(row.surf);
-  if(man>0)return {surf:man,fromDims:false};
+  if(man!==0)return {surf:man,fromDims:false}; // négatif accepté (trémie/escalier en soustraction)
   return {surf:0,fromDims:false};
 }
 
@@ -763,8 +763,19 @@ function CC_setRowProp(zone,id,prop,val){
   if(row)row[prop]=val;
 }
 function CC_removeRow(zone,id){
-  CC_rows[zone]=(CC_rows[zone]||[]).filter(function(r){return r.id!==id;});
-  CC_renderTable(zone);
+  var rows=CC_rows[zone]||[];
+  var gone=rows.find(function(r){return r.id===id;});
+  CC_rows[zone]=rows.filter(function(r){return r.id!==id;});
+  // Si la ligne provient d'une mesure du take-off, supprimer aussi cette mesure
+  // (et les lignes sœurs issues de la même mesure) pour garder plan et tableau alignés.
+  if(gone&&gone._gpmId!=null){
+    var gid_=gone._gpmId;
+    Object.keys(CC_rows).forEach(function(z){ CC_rows[z]=(CC_rows[z]||[]).filter(function(r){return r._gpmId!==gid_;}); });
+    if(typeof window!=='undefined'&&typeof window.GPM_removeMeasureById==='function')window.GPM_removeMeasureById(gid_);
+    CC_renderAllTables();
+  } else {
+    CC_renderTable(zone);
+  }
   CC_recalc();
 }
 function CC_dupRow(zone,id){
@@ -2184,14 +2195,14 @@ CC_injectUI(CC_boot);
   function isAxisRect(m){ return (m.geomType==='area'&&m.rect&&m.pts.length===4)||(m.geomType==='opening'&&m.oShape==='rect'&&m.pts.length>=4); }
   function rectBBox(m){ var xs=m.pts.map(function(p){return p.x;}),ys=m.pts.map(function(p){return p.y;}); return {x0:Math.min.apply(null,xs),y0:Math.min.apply(null,ys),x1:Math.max.apply(null,xs),y1:Math.max.apply(null,ys)}; }
   function rectEdgeMids(m){ var b=rectBBox(m); return [ {x:(b.x0+b.x1)/2,y:b.y0,edge:0}, {x:b.x1,y:(b.y0+b.y1)/2,edge:1}, {x:(b.x0+b.x1)/2,y:b.y1,edge:2}, {x:b.x0,y:(b.y0+b.y1)/2,edge:3} ]; }
-  function hitEdge(m,p){ if(!isAxisRect(m))return -1; var tol=10/(S.zoom||1), mids=rectEdgeMids(m); for(var i=0;i<mids.length;i++){ if(Math.hypot(p.x-mids[i].x,p.y-mids[i].y)<tol)return mids[i].edge; } return -1; }
+  function hitEdge(m,p){ if(!isAxisRect(m))return -1; var tol=14/(S.zoom||1), mids=rectEdgeMids(m); for(var i=0;i<mids.length;i++){ if(Math.hypot(p.x-mids[i].x,p.y-mids[i].y)<tol)return mids[i].edge; } return -1; }
   function setRectFromBBox(m,b){
     if(b.x1-b.x0<2)b.x1=b.x0+2; if(b.y1-b.y0<2)b.y1=b.y0+2;
     m.pts=[{x:b.x0,y:b.y0},{x:b.x1,y:b.y0},{x:b.x1,y:b.y1},{x:b.x0,y:b.y1}];
     if(m.geomType==='opening'){ if(S.scalePxPerM){ m.owM=(b.x1-b.x0)/S.scalePxPerM; m.ohM=(b.y1-b.y0)/S.scalePxPerM; } }
     else { if(S.scalePxPerM){ m.rectWM=(b.x1-b.x0)/S.scalePxPerM; m.rectHM=(b.y1-b.y0)/S.scalePxPerM; } m.areaM2=areaM2(m.pts); m.rect=true; }
   }
-  function edgeHandlesSvg(m){ if(!isAxisRect(m))return ''; var s=''; rectEdgeMids(m).forEach(function(e){ s+='<rect x="'+(e.x-5)+'" y="'+(e.y-5)+'" width="10" height="10" rx="2" fill="#fbbf24" stroke="#1a1a1a" stroke-width="1.5"/>'; }); return s; }
+  function edgeHandlesSvg(m){ if(!isAxisRect(m))return ''; var s=''; rectEdgeMids(m).forEach(function(e){ var horiz=(e.edge===0||e.edge===2); var w=horiz?26:9, h=horiz?9:26; s+='<rect x="'+(e.x-w/2)+'" y="'+(e.y-h/2)+'" width="'+w+'" height="'+h+'" rx="3" fill="#fbbf24" stroke="#1a1a1a" stroke-width="1.5"/>'; }); return s; }
   function pushUndo(){ try{S.undo.push(JSON.stringify(S.measures)); if(S.undo.length>40)S.undo.shift();}catch(e){} }
   function doUndo(){ if(!S.undo.length)return; var prev=S.undo.pop(); try{S.measures=JSON.parse(prev); S.pages[S.cur].measures=S.measures; setSel([]); renderItems(); redraw();}catch(e){} }
   function cloneMeasure(m,offset){ var c=JSON.parse(JSON.stringify(m)); c.id=idc++; c.sent=false; if(offset&&Array.isArray(c.pts))c.pts=c.pts.map(function(q){return {x:q.x+offset,y:q.y+offset};}); return c; }
@@ -2525,12 +2536,12 @@ CC_injectUI(CC_boot);
       '<label>Nom (optionnel)</label><input type="text" id="GPM_rmName" placeholder="ex. Mur nord">'+
       '<label>Application</label><div id="GPM_rmApps" class="gpm-chkgrp"></div>'+
       '<div id="GPM_rmAppWarn" style="display:none;color:#fca5a5;font-size:12px;margin:-2px 0 6px">Choisis au moins une application.</div>'+
+      '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#fca5a5;margin:0 0 8px"><input type="checkbox" id="GPM_rmNeg" style="width:auto"> Trémie / escalier (soustraire — surface négative)</label>'+
       '<label>Section</label><div id="GPM_rmSecs" class="gpm-chkgrp"></div>'+
       '<div style="display:flex;gap:6px;margin:0 0 8px"><input type="text" id="GPM_rmNewSec" placeholder="Nouvelle section" style="flex:1"><button type="button" class="gpm-cancel" id="GPM_rmAddSec">+ Section</button></div>'+
       '<label>Membranes</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0 0 6px"><input type="checkbox" id="GPM_rmMemInt" style="width:auto"> Membrane intérieure</label>'+
       '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e6edf3;margin:0"><input type="checkbox" id="GPM_rmMemExt" style="width:auto"> Membrane extérieure</label>'+
-      '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#fca5a5;margin:8px 0 0"><input type="checkbox" id="GPM_rmNeg" style="width:auto"> Trémie / escalier (soustraire — surface négative)</label>'+
       '<label>Couleur</label><div id="GPM_rmColor" class="gpm-colorrow"></div>'+
       '<div id="GPM_rmPenteRow" style="display:none"><label>Pente (x:12) — surface/ligne inclinée, vide = à plat <span id="GPM_rmPenteDeg" style="color:#8896a5"></span></label><input type="number" id="GPM_rmPente" step="any" placeholder="ex. 6"></div>'+
       '<div id="GPM_rmHRow" style="display:none"><label>Hauteur pour cette mesure (<span class="gpm-ou">m</span>) — vide = globale</label><input type="number" id="GPM_rmH" step="any"></div>'+
@@ -3509,7 +3520,7 @@ CC_injectUI(CC_boot);
       // OUVERTURE : pas d'application, une ligne ouv par section cochée
       if(m.geomType==='opening'){
         secIds.forEach(function(secId){
-          var r=CC_defaultRow('ouv'); r.secId=secId; r.code=m.name||'';
+          var r=CC_defaultRow('ouv'); r.secId=secId; r._gpmId=m.id; r.code=m.name||'';
           if(m.oShape==='poly'||m.oShape==='round'){
             r.surfBase=String(Math.round(m.areaM2*M2_FT2*100)/100);
             r.perimBase=String(Math.round((m.perimM/FT_M)*100)/100);
@@ -3530,7 +3541,7 @@ CC_injectUI(CC_boot);
           // de ligne cochées : mur/cloison/périmètre pointent toutes vers Murs). Évite le doublon.
           var nseg=m.pts.length-1;
           for(var i=0;i<nseg;i++){ var len=segLenM(m.pts[i],m.pts[i+1])*slopeFactor(m.pente); if(len<=0)continue;
-            var rm=CC_defaultRow('murs'); rm.secId=secId;
+            var rm=CC_defaultRow('murs'); rm.secId=secId; rm._gpmId=m.id;
             rm.label=(m.name||'Mur')+(nseg>1?' #'+(i+1):'')+suf; setDim(rm,'l',len); setDim(rm,'h',hM);
             CC_rows.murs.push(rm); touched.murs=1; count++; }
           return;
@@ -3543,18 +3554,18 @@ CC_injectUI(CC_boot);
               // murs par segment du contour (polygone fermé) × hauteur
               var pts=m.pts, n=pts.length;
               for(var k=0;k<n;k++){ var a=pts[k], b=pts[(k+1)%n]; var len2=segLenM(a,b); if(len2<=0)continue;
-                var rmp=CC_defaultRow('murs'); rmp.secId=secId;
+                var rmp=CC_defaultRow('murs'); rmp.secId=secId; rmp._gpmId=m.id;
                 rmp.label=(m.name||'Périmètre')+' #'+(k+1)+suf; setDim(rmp,'l',len2); setDim(rmp,'h',hM);
                 CC_rows.murs.push(rmp); touched.murs=1; count++; }
             } else if(app==='mur'){
-              var rmu=CC_defaultRow('murs'); rmu.secId=secId; rmu.label=(m.negative?'\u2212 ':'')+lbl; rmu.surf=(m.negative?-1:1)*ft2(m);
+              var rmu=CC_defaultRow('murs'); rmu.secId=secId; rmu._gpmId=m.id; rmu.label=(m.negative?'\u2212 ':'')+lbl; rmu.surf=(m.negative?-1:1)*ft2(m);
               CC_rows.murs.push(rmu); touched.murs=1; count++;
             } else if(app==='pignon'){
-              var rpg=CC_defaultRow('pig'); rpg.secId=secId; rpg.label=(m.negative?'\u2212 ':'')+lbl; rpg.surf=(m.negative?-1:1)*ft2(m);
+              var rpg=CC_defaultRow('pig'); rpg.secId=secId; rpg._gpmId=m.id; rpg.label=(m.negative?'\u2212 ':'')+lbl; rpg.surf=(m.negative?-1:1)*ft2(m);
               CC_rows.pig.push(rpg); touched.pig=1; count++;
             } else {
               var zone=(app==='grenier'||app==='toiture')?'grenier':'plafonds';
-              var rr=CC_defaultRow(zone); rr.secId=secId; rr.label=(m.negative?'\u2212 ':'')+lbl;
+              var rr=CC_defaultRow(zone); rr.secId=secId; rr._gpmId=m.id; rr.label=(m.negative?'\u2212 ':'')+lbl;
               if(m.negative){ rr.surf=-ft2(m); }
               else if(m.rect&&!(m.pente>0)){ setDim(rr,'l',m.rectWM); setDim(rr,'w',m.rectHM); }
               else { rr.surf=ft2(m); }
@@ -3892,6 +3903,51 @@ CC_injectUI(CC_boot);
     if(built&&S.pages.length){ S.pdfDoc=null; var em=gid('GPM_empty'); if(em)em.style.display='none'; var zc=gid('GPM_zoomctl'); if(zc)zc.style.display='flex'; showPage(S.cur); renderPageTabs(); }
   };
   window.GPM_close=function(){ if(el)el.classList.remove('show'); };
+
+  // Filet de sécurité : si le module GPM (v2) est chargé mais que le HTML embarqué
+  // du calculateur ne contient pas les boutons « Mesure sur plan » (ex. page Odoo
+  // dans une autre langue dont la traduction du bloc est restée sur une version
+  // antérieure), on les (ré)injecte. Anodin si les boutons existent déjà.
+  function gpmCtaSvg(w){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'+(w?' style="width:14px;height:14px"':'')+'><path d="M3 12h18M3 9v6M21 9v6M8 10v4M13 10v4M18 10v4"></path></svg>'; }
+  function GPM_ensureCTA(){
+    try{
+      var seg=document.getElementById('CC_unitSeg');
+      if(seg && !document.querySelector('.gp-takeoff-cta')){
+        var b=document.createElement('button');
+        b.type='button'; b.className='nav-btn gp-takeoff-cta'; b.style.marginLeft='auto'; b.title='Mesure sur plan';
+        b.innerHTML=gpmCtaSvg(true)+' Mesure sur plan';
+        b.addEventListener('click',function(){ if(window.GPM_open)window.GPM_open(); });
+        seg.parentNode.insertBefore(b, seg);
+      }
+      var actions=document.querySelector('.save-bar-actions');
+      if(actions){
+        var has=Array.prototype.some.call(actions.querySelectorAll('button'),function(bb){ return /GPM_open/.test(bb.getAttribute('onclick')||'')||bb.classList.contains('gp-takeoff-save'); });
+        if(!has){
+          var s=document.createElement('button');
+          s.type='button'; s.className='save-btn gp-takeoff-save'; s.title='Prendre les mesures directement sur un plan PDF ou une image';
+          s.innerHTML=gpmCtaSvg(false)+' Mesure sur plan';
+          s.addEventListener('click',function(){ if(window.GPM_open)window.GPM_open(); });
+          actions.insertBefore(s, actions.firstChild);
+        }
+      }
+    }catch(e){}
+  }
+  window.GPM_ensureCTA=GPM_ensureCTA;
+  (function bootEnsureCTA(){
+    var tries=0;
+    function tick(){ tries++; if(document.getElementById('CC_unitSeg')||document.querySelector('.save-bar-actions')){ GPM_ensureCTA(); return; } if(tries<40)setTimeout(tick,100); }
+    if(typeof document==='undefined')return;
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',tick); else tick();
+  })();
+
+  window.GPM_removeMeasureById=function(id){
+    if(!S.pages)return false;
+    var found=false;
+    S.pages.forEach(function(pg){ if(!pg.measures)return; var b=pg.measures.length; pg.measures=pg.measures.filter(function(m){return m.id!==id;}); if(pg.measures.length!==b)found=true; });
+    if(S.pages[S.cur])S.measures=S.pages[S.cur].measures;
+    if(found){ S.selIds=(S.selIds||[]).filter(function(x){return x!==id;}); if(S.selId===id)S.selId=null; if(built){ renderItems(); redraw(); } }
+    return found;
+  };
   window.GPM_reset=function(){
     // Repart de zéro : aucune page, aucune mesure (appelé par « Nouveau » du calculateur).
     S.pages=[]; S.cur=0; S.measures=[]; S.scalePxPerM=null; S.pdfDoc=null; S.imgSrc=null;
