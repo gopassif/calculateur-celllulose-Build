@@ -243,6 +243,7 @@ tbody[data-dimunit="mm"] .dim-mm { display:flex; }
 .sec-group-name { font-size:12px; font-weight:700; color:#1a1a1a; letter-spacing:0.03em; }
 .sec-group-add { border:1.5px dashed var(--line); border-radius:7px; background:var(--surface); color:var(--ink-2); cursor:pointer; font-size:11px; font-weight:600; padding:4px 10px; transition:border-color .15s,background .15s; }
 .sec-group-add:hover { border-color:#1a1a1a; background:var(--accent-soft); }
+.sec-group-add-row td { padding:8px 6px; text-align:left; background:transparent; border:none; }
 .sec-group-sub td { background:var(--surface-3); font-weight:600; color:var(--ink-2); border-top:1px solid var(--line); border-bottom:2px solid var(--line); }
 .sec-group-sub .sec-sub-label { text-align:right; font-size:11px; color:var(--ink-3); text-transform:uppercase; letter-spacing:0.03em; }
 

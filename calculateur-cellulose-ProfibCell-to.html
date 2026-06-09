@@ -45,7 +45,7 @@
           <span class="nav-badge">2</span> Config
         </button>
         <button class="nav-btn" data-target="sec-grenier" onclick="CC_navTo('sec-grenier')">
-          <span class="nav-badge">3</span> Grenier
+          <span class="nav-badge">3</span> Entretoit
         </button>
         <button class="nav-btn" data-target="sec-plafond" onclick="CC_navTo('sec-plafond')">
           <span class="nav-badge">4</span> Plafond
@@ -166,7 +166,7 @@
     <div class="config-grid">
       <!-- Grenier -->
       <div class="config-zone-card">
-        <div class="config-zone-title">Grenier / entretoit</div>
+        <div class="config-zone-title">Entretoit</div>
         <div class="cfg-field">
           <div class="field-label">&Eacute;paisseur <span class="ep-unit">(po)</span></div>
           <input class="field-input" type="text" id="CC_cfgGrenierEp" value="17" oninput="CC_onCfgInput('grenier','epTxt')">
@@ -235,10 +235,10 @@
   </div>
 
   <!-- ═══ GRENIER / ENTRETOIT ═══ -->
-  <div id="sec-grenier" class="section-label">Grenier / entretoit</div>
+  <div id="sec-grenier" class="section-label">Entretoit</div>
   <div class="card">
     <div class="card-title">
-      <div class="ct-left"><span class="step-badge">3</span><span>Grenier / Entretoit</span></div>
+      <div class="ct-left"><span class="step-badge">3</span><span>Entretoit</span></div>
     </div>
     <!-- En-tête de zone: R, épaisseur, densité -->
     <div class="jeu-global" style="flex-wrap:wrap;gap:12px 18px;align-items:flex-start">
@@ -281,7 +281,7 @@
         </tr></thead>
         <tbody id="CC_tbody_grenier"></tbody>
         <tfoot><tr class="subtotal-row">
-          <td colspan="4">Sous-total grenier</td>
+          <td colspan="4">Sous-total entretoit</td>
           <td class="col-surf" id="CC_stSurfGrenier">&mdash;</td>
           <td class="col-r"></td>
           <td class="col-ep"></td>
@@ -566,7 +566,7 @@
     <!-- D&eacute;tail par zone -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px">
       <div class="stat-tile">
-        <div class="stat-tile-label">Grenier</div>
+        <div class="stat-tile-label">Entretoit</div>
         <div class="stat-value-row"><span class="stat-value" id="CC_resGrenier">—</span><span class="stat-unit">sacs</span></div>
         <div style="font-size:10px;color:var(--ink-4);margin-top:3px" id="CC_resGrenierSurf">—</div>
       </div>
@@ -628,7 +628,7 @@
       <div class="summary-title">D&eacute;tail par zone</div>
       <div class="summary-rows">
         <div class="summary-row selected">
-          <div class="summary-mat"><span class="summary-mat-name">Grenier</span><span class="summary-mat-sub" id="CC_sumSubGrenier">—</span></div>
+          <div class="summary-mat"><span class="summary-mat-name">Entretoit</span><span class="summary-mat-sub" id="CC_sumSubGrenier">—</span></div>
           <div class="summary-fig"><div class="summary-fig-val" id="CC_sumGrenier">—</div><div class="summary-fig-sub">sacs</div></div>
         </div>
         <div class="summary-row selected">
